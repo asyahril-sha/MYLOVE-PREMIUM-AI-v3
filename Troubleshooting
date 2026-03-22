@@ -1,0 +1,10 @@
+# Jika ada error import, pastikan semua file baru sudah dibuat
+ls dynamics/role_behavior.py
+ls dynamics/ipar_behavior.py
+ls config/role_behavior_config.py
+
+# Jika ada error database, jalankan migration ulang
+python database/migrate.py
+
+# Jika AI tidak merespon, cek API key
+echo $DEEPSEEK_API_KEY
