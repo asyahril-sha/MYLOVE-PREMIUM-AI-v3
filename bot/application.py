@@ -1,8 +1,11 @@
-#!/usr/bin/env python
+# bot/application.py
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-MYLOVE PREMIUM AI - PTB APPLICATION FACTORY
+MYLOVE PREMIUM AI V3 - PTB APPLICATION FACTORY
+=============================================================================
+Membuat dan mengkonfigurasi aplikasi Telegram Bot dengan semua handler
+Termasuk handler untuk V3: PDKT, Mantan & FWB, Ranking, HTS, Session Continue
 =============================================================================
 """
 
@@ -30,29 +33,53 @@ from bot.handlers import (
     close_command,
     end_command,
     continue_command,
+    # Relationship
     jadipacar_command,
     break_command,
     unbreak_command,
     breakup_command,
     fwb_command,
-    htslist_command,
+    # PDKT V3
+    pdkt_command,
+    pdktrandom_command,
+    pdktlist_command,
+    pdktdetail_command,
+    pdktwho_command,
+    pausepdkt_command,
+    resumepdkt_command,
+    stoppdkt_command,
+    # Mantan & FWB V3
+    mantanlist_command,
+    mantan_detail_command,
+    fwbrequest_command,
     fwblist_command,
-    hts_call_handler,
-    fwb_call_handler,
-    explore_command,
-    locations_command,
-    risk_command,
+    fwb_pause_command,
+    fwb_resume_command,
+    fwb_end_command,
+    # Ranking
     tophts_command,
     myclimax_command,
     climaxhistory_command,
+    # HTS
+    hts_command,
+    # Public
+    explore_command,
+    locations_command,
+    risk_command,
+    # Admin
+    admin_command,
     stats_command,
     db_stats_command,
     debug_command,
+    # Dummy
     dominant_command,
     pause_command,
     unpause_command,
     sessions_command,
-    admin_command,
+    # HTS/FWB legacy
+    htslist_command,
+    hts_call_handler,
+    fwb_call_handler,
 )
 from bot.callbacks import (
     agree_18_callback,
@@ -74,8 +101,14 @@ from bot.callbacks import (
     fwb_callback,
     threesome_menu_callback,
     back_to_main_callback,
+    admin_callback_handler,
+    # V3 Callbacks
+    stop_callback,
+    fwb_end_callback,
+    hts_callback,
 )
 from bot.commands import error_handler
+from bot.webhook import setup_webhook_sync
 
 
 # =============================================================================
@@ -107,11 +140,13 @@ class BotStates:
 
 def create_application() -> Application:
     """
-    Create and configure telegram application
+    Create and configure telegram application untuk MYLOVE V3
     """
     
     logger = logging.getLogger(__name__)
-    logger.info("🔧 Creating PTB application...")
+    logger.info("=" * 60)
+    logger.info("🔧 Creating PTB application for MYLOVE V3...")
+    logger.info("=" * 60)
     
     # Custom request dengan timeout besar
     request = HTTPXRequest(
@@ -254,29 +289,71 @@ def create_application() -> Application:
     app.add_handler(CommandHandler("breakup", breakup_command))
     app.add_handler(CommandHandler("fwb", fwb_command))
     
-    # HTS/FWB commands
-    app.add_handler(CommandHandler("htslist", htslist_command))
+    # =========================================================================
+    # PDKT V3 COMMANDS
+    # =========================================================================
+    logger.info("  • Registering PDKT V3 commands...")
+    app.add_handler(CommandHandler("pdkt", pdkt_command))
+    app.add_handler(CommandHandler("pdktrandom", pdktrandom_command))
+    app.add_handler(CommandHandler("pdktlist", pdktlist_command))
+    app.add_handler(CommandHandler("pdktdetail", pdktdetail_command))
+    app.add_handler(CommandHandler("pdktwho", pdktwho_command))
+    app.add_handler(CommandHandler("pausepdkt", pausepdkt_command))
+    app.add_handler(CommandHandler("resumepdkt", resumepdkt_command))
+    app.add_handler(CommandHandler("stoppdkt", stoppdkt_command))
+    
+    # =========================================================================
+    # MANTAN & FWB V3 COMMANDS
+    # =========================================================================
+    logger.info("  • Registering Mantan & FWB V3 commands...")
+    app.add_handler(CommandHandler("mantanlist", mantanlist_command))
+    app.add_handler(CommandHandler("mantan", mantan_detail_command))
+    app.add_handler(CommandHandler("fwbrequest", fwbrequest_command))
     app.add_handler(CommandHandler("fwblist", fwblist_command))
+    app.add_handler(CommandHandler("fwb", fwb_command))
+    app.add_handler(CommandHandler("fwb_pause", fwb_pause_command))
+    app.add_handler(CommandHandler("fwb_resume", fwb_resume_command))
+    app.add_handler(CommandHandler("fwb_end", fwb_end_command))
     
-    # HTS/FWB call commands (pattern matching)
-    app.add_handler(MessageHandler(filters.Regex(r'^/hts-'), hts_call_handler))
-    app.add_handler(MessageHandler(filters.Regex(r'^/fwb-'), fwb_call_handler))
-    
-    # Ranking commands
+    # =========================================================================
+    # RANKING COMMANDS
+    # =========================================================================
+    logger.info("  • Registering Ranking commands...")
     app.add_handler(CommandHandler("tophts", tophts_command))
     app.add_handler(CommandHandler("myclimax", myclimax_command))
     app.add_handler(CommandHandler("climaxhistory", climaxhistory_command))
     
-    # Public area commands
+    # =========================================================================
+    # HTS COMMAND (NEW)
+    # =========================================================================
+    logger.info("  • Registering HTS command...")
+    app.add_handler(CommandHandler("hts", hts_command))
+    
+    # =========================================================================
+    # HTS/FWB LEGACY COMMANDS (pattern matching)
+    # =========================================================================
+    logger.info("  • Registering HTS/FWB legacy commands...")
+    app.add_handler(CommandHandler("htslist", htslist_command))
+    app.add_handler(CommandHandler("fwblist", fwblist_command))
+    app.add_handler(MessageHandler(filters.Regex(r'^/hts-'), hts_call_handler))
+    app.add_handler(MessageHandler(filters.Regex(r'^/fwb-'), fwb_call_handler))
+    
+    # =========================================================================
+    # PUBLIC AREA COMMANDS
+    # =========================================================================
+    logger.info("  • Registering Public Area commands...")
     app.add_handler(CommandHandler("explore", explore_command))
     app.add_handler(CommandHandler("locations", locations_command))
     app.add_handler(CommandHandler("risk", risk_command))
     
-    # Admin commands
+    # =========================================================================
+    # ADMIN COMMANDS
+    # =========================================================================
+    logger.info("  • Registering Admin commands...")
+    app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(CommandHandler("db_stats", db_stats_command))
     app.add_handler(CommandHandler("debug", debug_command))
-    app.add_handler(CommandHandler("admin", admin_command))
     
     # =========================================================================
     # MESSAGE HANDLER (HARUS PALING AKHIR)
@@ -288,6 +365,7 @@ def create_application() -> Application:
     # =========================================================================
     logger.info("  • Registering callback handlers...")
     
+    # Role callbacks
     app.add_handler(CallbackQueryHandler(agree_18_callback, pattern='^agree_18$'))
     app.add_handler(CallbackQueryHandler(start_pause_callback, pattern='^(unpause|new)$'))
     app.add_handler(CallbackQueryHandler(role_ipar_callback, pattern='^role_ipar$'))
@@ -299,14 +377,37 @@ def create_application() -> Application:
     app.add_handler(CallbackQueryHandler(role_sepupu_callback, pattern='^role_sepupu$'))
     app.add_handler(CallbackQueryHandler(role_teman_sma_callback, pattern='^role_teman_sma$'))
     app.add_handler(CallbackQueryHandler(role_mantan_callback, pattern='^role_mantan$'))
+    
+    # Session callbacks
     app.add_handler(CallbackQueryHandler(end_callback, pattern='^end_'))
     app.add_handler(CallbackQueryHandler(close_callback, pattern='^close_'))
+    
+    # Relationship callbacks
     app.add_handler(CallbackQueryHandler(jadipacar_callback, pattern='^jadipacar_'))
     app.add_handler(CallbackQueryHandler(break_callback, pattern='^break_'))
     app.add_handler(CallbackQueryHandler(breakup_callback, pattern='^breakup_'))
     app.add_handler(CallbackQueryHandler(fwb_callback, pattern='^fwb_'))
+    
+    # Threesome callbacks
     app.add_handler(CallbackQueryHandler(threesome_menu_callback, pattern='^threesome_menu$'))
     app.add_handler(CallbackQueryHandler(back_to_main_callback, pattern='^back_to_main$'))
+    
+    # Admin callbacks
+    app.add_handler(CallbackQueryHandler(admin_callback_handler, pattern='^admin_'))
+    
+    # =========================================================================
+    # V3 CALLBACK HANDLERS (BARU)
+    # =========================================================================
+    logger.info("  • Registering V3 callback handlers...")
+    
+    # Stop PDKT callback
+    app.add_handler(CallbackQueryHandler(stop_callback, pattern='^stop_'))
+    
+    # FWB End callback
+    app.add_handler(CallbackQueryHandler(fwb_end_callback, pattern='^fwb_end_'))
+    
+    # HTS callback
+    app.add_handler(CallbackQueryHandler(hts_callback, pattern='^hts_'))
     
     # =========================================================================
     # ERROR HANDLER
@@ -316,6 +417,17 @@ def create_application() -> Application:
     # Log jumlah handlers
     handler_count = sum(len(h) for h in app.handlers.values())
     logger.info(f"✅ All handlers registered: {handler_count} handlers")
+    logger.info("   • Basic commands: 5")
+    logger.info("   • PDKT V3 commands: 8")
+    logger.info("   • Mantan & FWB V3 commands: 7")
+    logger.info("   • Ranking commands: 3")
+    logger.info("   • HTS command: 1")
+    logger.info("   • Session commands: 4")
+    logger.info("   • Public Area commands: 3")
+    logger.info("   • Admin commands: 4")
+    logger.info("   • Callback handlers: 25+")
+    logger.info("   • V3 Callbacks: 3")
+    logger.info("=" * 60)
     
     return app
 
