@@ -420,7 +420,6 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, role
         context.user_data['current_session'] = session_id
         
         # ===== SET DATA UNTUK ROLE IPAR =====
-        # Di role_callback, untuk role ipar:
         if role_key == 'ipar':
             context.user_data['tinggal_bersama'] = True
             context.user_data['status_tinggal'] = 'tinggal di rumah Mas dan Kak Nova'
