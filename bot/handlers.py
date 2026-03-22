@@ -585,6 +585,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         progress_text = f"{bar} MAX"
         next_text = "✅ Level MAX! Butuh aftercare untuk reset ke Level 7."
     
+    # Di status_command, gunakan location, clothing, position langsung
     status_text = (
         f"📊 <b>STATUS HUBUNGAN</b>\n\n"
         f"👤 <b>Nama Bot:</b> {bot_name}\n"
