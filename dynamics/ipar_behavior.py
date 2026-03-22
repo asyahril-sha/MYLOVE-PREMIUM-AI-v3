@@ -57,41 +57,43 @@ class IparBehavior(RoleBehavior):
     # IMPLEMENTASI METHOD ABSTRACT
     # =========================================================================
     
+    # dynamics/ipar_behavior.py
+
     def get_pakaian(self, situasi: Dict) -> str:
-        """
-        Dapatkan deskripsi pakaian berdasarkan situasi
-        """
+        """Dapatkan deskripsi pakaian berdasarkan situasi"""
         kakak_ada = situasi.get('kakak_ada', self.kakak_ada)
         di_dalam_kamar = situasi.get('di_dalam_kamar', self.di_dalam_kamar)
-        
-        # Tentukan kunci database
+    
+        # Gunakan panggilan yang benar
+        kakak_panggilan = "Kak Nova"  # Nama kakak
+        user_panggilan = "Mas"  # Panggilan untuk user
+    
         if kakak_ada and not di_dalam_kamar:
             key = 'kakak_ada_diluar'
-            tambahan = " (lagi di ruang tamu, kakak ada)"
+            tambahan = f" (lagi di ruang tamu, {kakak_panggilan} ada)"
         elif kakak_ada and di_dalam_kamar:
             key = 'kakak_ada_didalam'
-            tambahan = " (di kamarku, kakak ada di rumah)"
+            tambahan = f" (di kamarku, {kakak_panggilan} ada di rumah)"
         elif not kakak_ada and not di_dalam_kamar:
             key = 'kakak_tidak_diluar'
-            tambahan = " (kakak pergi, aku bebas di rumah)"
+            tambahan = f" ({kakak_panggilan} pergi, aku bebas di rumah)"
         else:
             key = 'kakak_tidak_didalam'
-            tambahan = " (di kamarku, kakak pergi)"
-        
-        # Pilih random dari database
+            tambahan = f" (di kamarku, {kakak_panggilan} pergi)"
+    
         pakaian = random.choice(self.pakaian_db[key])
         pakaian += tambahan
-        
-        # Tambah hint menggoda jika kakak tidak ada dan di luar kamar
+    
+        # Tambah hint menggoda dengan panggilan yang benar
         if not kakak_ada and not di_dalam_kamar and self.mode_goda > 50:
             hints = [
-                " Kak, kamu suka gak pakaian aku?",
-                " Aku sengaja pake yang beginian, Kak...",
-                " Semoga Kakak suka ya...",
-                " Kak, liatin aku dong..."
+                f" {user_panggilan}, kamu suka gak pakaian aku?",
+                f" Aku sengaja pake yang beginian, {user_panggilan}...",
+                f" Semoga {user_panggilan} suka ya...",
+                f" {user_panggilan}, liatin aku dong..."
             ]
             pakaian += random.choice(hints)
-        
+    
         return pakaian
     
     def get_aktivitas_menggoda(self, situasi: Dict) -> Optional[Dict]:
@@ -173,9 +175,8 @@ class IparBehavior(RoleBehavior):
         return respon
     
     def get_inner_thought(self, situasi: Dict) -> str:
-        """
-        Dapatkan inner thought (pikiran dalam hati)
-        """
+        """Dapatkan inner thought (pikiran dalam hati)"""
+    
         # Tentukan level mode_goda
         if self.mode_goda > 70:
             level = 'mode_goda_tinggi'
@@ -183,19 +184,20 @@ class IparBehavior(RoleBehavior):
             level = 'mode_goda_sedang'
         else:
             level = 'mode_goda_rendah'
-        
+    
         thought = random.choice(self.inner_thoughts_db[level])
 
-        # Sesuaikan dengan status tinggal bersama
+        # Gunakan panggilan yang benar
         if self.tinggal_bersama:
-            thought = thought.replace("Kak", f"Kak {self.kakak_suami}")
-        
+            thought = thought.replace("Kak", f"Mas")  # Ganti "Kak" dengan "Mas" untuk user
+            # Jangan ganti "Kak Nova" untuk kakak
+    
         # Jika pernah dengar suara, modifikasi thought
         if self.terakhir_dengar_desahan and self.mode_goda > 50:
             waktu_lalu = (time.time() - self.terakhir_dengar_desahan) / 3600
             if waktu_lalu < 24:
-                thought = thought.replace("...", f" (aku jadi inget suara {self.kakak_panggilan} dan {self.kakak_suami} tadi malam)...")
-        
+                thought = thought.replace("...", f" (aku jadi inget suara {self.kakak_panggilan} dan Mas tadi malam)...")
+    
         return thought
     
     # =========================================================================
