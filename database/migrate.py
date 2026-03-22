@@ -84,6 +84,23 @@ def migrate():
         )
     """)
     print("  ✅ sessions (with bot_name)")
+
+    # ===== TAMBAHKAN KODE INI DI SINI =====
+    # ===== ADD COLUMN date AND sequence IF NOT EXISTS =====
+    try:
+        cursor.execute("ALTER TABLE sessions ADD COLUMN date TEXT")
+        print("  ✅ Added column date to sessions")
+    except sqlite3.OperationalError:
+        # Column already exists
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE sessions ADD COLUMN sequence INTEGER")
+        print("  ✅ Added column sequence to sessions")
+    except sqlite3.OperationalError:
+        # Column already exists
+        pass
+    # ===== END TAMBAHAN =====
     
     # =========================================================================
     # TABEL CONVERSATIONS
