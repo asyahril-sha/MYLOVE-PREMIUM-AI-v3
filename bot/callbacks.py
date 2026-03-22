@@ -229,31 +229,32 @@ def get_bot_name(role: str, user_id: int) -> Tuple[str, str]:
         }
         return fallback_names.get(role, ("Sari", "esensi"))
 
-def get_random_location() -> Tuple[str, str]:
+def get_random_location() -> tuple:
     """Dapatkan lokasi random"""
     try:
         loc_system = LocationSystem()
         loc = loc_system.get_random_location()
-        # 🔥 PERBAIKAN: Simpan hanya nama lokasi
         location_name = loc['name']
         location_text = f"📍 Aku di <b>{location_name}</b>. {loc['description']}"
         activity = random.choice(loc['activities'])
-        return location_text, activity, location_name  # Tambahkan return location_name
+        return location_text, activity, location_name
     except:
         locations = [
             ("📍 Aku di <b>kamar</b>. Kamar tidur dengan ranjang ukuran queen.", "rebahan", "kamar"),
             ("📍 Aku di <b>ruang tamu</b>. Ruang tamu yang hangat dengan sofa empuk.", "nonton TV", "ruang tamu"),
             ("📍 Aku di <b>dapur</b>. Dapur bersih dengan peralatan masak lengkap.", "masak", "dapur"),
             ("📍 Aku di <b>pantai</b>. Pantai dengan pasir putih dan ombak tenang.", "jalan-jalan", "pantai"),
+            ("📍 Aku di <b>taman</b>. Taman kecil dengan rumput hijau dan bunga-bunga.", "duduk santai", "taman"),
+            ("📍 Aku di <b>kantor</b>. Ruang kantor dengan meja kerja dan komputer.", "kerja", "kantor"),
+            ("📍 Aku di <b>mall</b>. Mall besar dengan berbagai toko dan makanan.", "jalan-jalan", "mall"),
         ]
         return random.choice(locations)
 
-def get_random_clothing() -> Tuple[str, str]:
+def get_random_clothing() -> tuple:
     """Dapatkan pakaian random"""
     try:
         cloth_system = ClothingSystem()
         cloth = cloth_system.get_random_clothing()
-        # 🔥 PERBAIKAN: Simpan hanya nama pakaian
         clothing_name = cloth['name']
         clothing_text = f"👗 Aku pakai <b>{clothing_name}</b>. {cloth['description']}"
         return clothing_text, clothing_name
@@ -263,18 +264,29 @@ def get_random_clothing() -> Tuple[str, str]:
             ("👗 Aku pakai <b>piyama lucu</b> dengan motif boneka.", "piyama"),
             ("👚 Aku pakai <b>kaos oversized</b> dan <b>celana pendek</b>.", "kaos oversized"),
             ("👗 Aku pakai <b>dress cantik</b> warna pastel.", "dress cantik"),
+            ("👗 Aku pakai <b>sweater hangat</b>. Sweater rajut yang hangat.", "sweater hangat"),
+            ("👗 Aku pakai <b>gamis panjang</b>. Gamis yang elegan.", "gamis panjang"),
         ]
         return random.choice(clothes)
 
-def get_random_position() -> str:
+def get_random_position() -> tuple:
     """Dapatkan posisi random"""
     try:
         pos_system = PositionSystem()
         pos = pos_system.get_random_position()
-        return f"<b>{pos['description']}</b>"
+        position_name = pos['name']
+        position_text = f"<b>{position_name}</b>"
+        return position_text, position_name
     except:
-        positions = ["duduk santai", "berbaring", "berdiri", "bersandar", "jongkok"]
-        return f"<b>{random.choice(positions)}</b>"
+        positions = [
+            ("<b>duduk santai</b>", "duduk santai"),
+            ("<b>berbaring</b>", "berbaring"),
+            ("<b>berdiri</b>", "berdiri"),
+            ("<b>bersandar</b>", "bersandar"),
+            ("<b>jongkok</b>", "jongkok"),
+            ("<b>rebahan</b>", "rebahan"),
+        ]
+        return random.choice(positions)
 
 def get_random_artist(role: str) -> dict:
     """Dapatkan referensi artis random"""
@@ -390,9 +402,9 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, role
         hijab_status = "berhijab" if artist.get('hijab', False) else "tidak berhijab"
         
         # Dapatkan lokasi
-        location_text, activity = get_random_location()
-        clothing_text = get_random_clothing()
-        position_text = get_random_position()
+        location_text, activity, location_name = get_random_location()
+        clothing_text, clothing_name = get_random_clothing()
+        position_text, position_name = get_random_position()
         
         # Set data
         context.user_data['current_role'] = role_key
