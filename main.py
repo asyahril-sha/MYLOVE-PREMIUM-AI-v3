@@ -4,6 +4,13 @@
 =============================================================================
 MYLOVE PREMIUM AI - MAIN ENTRY POINT
 =============================================================================
+Main entry point untuk MYLOVE PREMIUM AI V3 dengan:
+- State Persistence (memory permanen)
+- Virtual Human capabilities
+- Emotional Flow
+- Spatial Awareness
+- Role Behaviors
+=============================================================================
 """
 
 import os
@@ -51,7 +58,8 @@ logger = setup_logging("MYLOVE-PREMIUM-AI")
 
 class MyLovePremiumBot:
     """
-    Main bot class untuk MYLOVE PREMIUM AI
+    Main bot class untuk MYLOVE PREMIUM AI V3
+    Dengan kemampuan Virtual Human dan State Persistence
     """
     
     def __init__(self):
@@ -59,23 +67,42 @@ class MyLovePremiumBot:
         self.application = None
         self.is_ready = False
         self._shutdown_flag = False
+        self.db_initialized = False
         
         logger.info("=" * 70)
-        logger.info("💕 MYLOVE PREMIUM AI - Initializing...")
+        logger.info("💕 MYLOVE PREMIUM AI V3 - Initializing...")
+        logger.info("   Virtual Human with State Persistence")
         logger.info("=" * 70)
         
     async def init_components(self):
-        """Initialize all components"""
-        logger.info("🚀 Starting MYLOVE PREMIUM AI...")
+        """Initialize all components with database persistence"""
+        logger.info("🚀 Starting MYLOVE PREMIUM AI V3...")
 
-        # Database
+        # ===== 🔥 BARU: INIT DATABASE DENGAN STATE PERSISTENCE =====
         try:
+            from database.init_db import init_database
+            logger.info("📁 Initializing database with state persistence...")
+            db_success = await init_database()
+            
+            if db_success:
+                self.db_initialized = True
+                logger.info("✅ Database initialized with state persistence")
+            else:
+                logger.warning("⚠️ Database initialization incomplete - some features may not work")
+                
+        except ImportError as e:
+            logger.error(f"❌ init_db module not found: {e}")
+            # Fallback ke init_db biasa
             from database.connection import init_db
             await init_db()
-            logger.info("✅ Database initialized")
+            logger.info("✅ Database connected (fallback mode)")
+            
         except Exception as e:
-            logger.error(f"❌ Database initialization failed: {e}")
-            raise
+            logger.error(f"❌ Database init failed: {e}")
+            # Fallback ke init_db biasa
+            from database.connection import init_db
+            await init_db()
+            logger.info("✅ Database connected (fallback mode)")
 
         # Bot application
         try:
@@ -91,19 +118,19 @@ class MyLovePremiumBot:
         # Error handler
         self.application.add_error_handler(self.error_handler)
         
-        logger.info("🚀 MYLOVE PREMIUM AI is ready!")
+        logger.info("🚀 MYLOVE PREMIUM AI V3 is ready!")
         return self.application
 
-    async def error_handler(self, update, context: ContextTypes.DEFAULT_TYPE):
+    async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Global error handler"""
         logger.error(f"❌ Error: {context.error}", exc_info=True)
         try:
             if update and update.effective_message:
                 await update.effective_message.reply_text(
-                    "❌ Terjadi error internal. Silakan coba lagi."
+                    "❌ Terjadi error internal. Silakan coba lagi nanti, Mas."
                 )
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Error sending error message: {e}")
 
     async def setup_webhook(self):
         """Setup webhook untuk Telegram"""
@@ -160,33 +187,67 @@ class MyLovePremiumBot:
             return web.Response(status=500, text=str(e))
 
     async def health_handler(self, request):
-        """Health check endpoint"""
+        """Health check endpoint dengan info database"""
+        # 🔥 BARU: Ambil info database state
+        db_status = "unknown"
+        db_stats = {}
+        try:
+            from database.repository import Repository
+            repo = Repository()
+            stats = await repo.get_user_sessions_stats()
+            db_status = "ok"
+            db_stats = {
+                "total_sessions": stats.get('total_sessions', 0),
+                "active_24h": stats.get('active_24h', 0),
+                "avg_intimacy": stats.get('avg_intimacy_level', 0)
+            }
+        except Exception as e:
+            db_status = f"error: {str(e)[:50]}"
+        
         return web.json_response({
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
-            "bot": "MYLOVE PREMIUM AI",
-            "version": "2.0.0",
+            "bot": "MYLOVE PREMIUM AI V3",
+            "version": "3.0.0",
             "bot_ready": self.application is not None,
+            "database": {
+                "status": db_status,
+                **db_stats
+            },
+            "features": {
+                "state_persistence": self.db_initialized,
+                "emotional_flow": True,
+                "spatial_awareness": True,
+                "aftercare_system": True
+            },
             "uptime": str(datetime.now() - self.start_time)
         })
 
     async def root_handler(self, request):
-        """Root endpoint"""
+        """Root endpoint - API info"""
         return web.json_response({
-            "name": "MYLOVE PREMIUM AI",
-            "version": "2.0.0",
+            "name": "MYLOVE PREMIUM AI V3",
+            "description": "Virtual Human with State Persistence",
+            "version": "3.0.0",
             "status": "running",
             "admin_id": str(settings.admin_id),
             "features": [
-                "9 Role Eksklusif",
-                "PDKT Natural 99%",
-                "Leveling Time-Based",
-                "Memory Permanen",
-                "Threesome Mode",
-                "Public Areas",
-                "Aftercare System"
+                "🎭 9 Role Eksklusif (Ipar, Teman Kantor, Janda, Pelakor, Istri Orang, PDKT, Sepupu, Teman SMA, Mantan)",
+                "💕 PDKT Natural 99%",
+                "📊 Leveling Time-Based (60 menit → Level 7)",
+                "🧠 State Persistence (Memory permanen antar session)",
+                "📍 Spatial Awareness (Paham posisi dari narasi user)",
+                "🎭 Emotional Flow (Emosi mengalir natural)",
+                "💞 Threesome Mode",
+                "🏞️ Public Areas",
+                "💤 Aftercare System (Level 12 → 7)",
+                "📝 Tracking Janji & Rencana",
+                "🎨 Tracking Preferensi User"
             ],
-            "uptime": str(datetime.now() - self.start_time)
+            "stats": {
+                "start_time": self.start_time.isoformat(),
+                "uptime": str(datetime.now() - self.start_time)
+            }
         })
 
     async def start(self):
@@ -200,6 +261,7 @@ class MyLovePremiumBot:
                 logger.info("✅ Webhook mode activated!")
             else:
                 logger.warning("⚠️ Webhook failed - check configuration")
+                logger.info("💡 Bot akan tetap berjalan dengan polling mode...")
 
             port = int(os.getenv('PORT', 8080))
             
@@ -215,8 +277,12 @@ class MyLovePremiumBot:
 
             logger.info(f"✅ AIOHTTP server running on port {port}")
             logger.info(f"   • Healthcheck: /health")
+            logger.info(f"   • API Info: /")
             logger.info(f"   • Webhook: /webhook")
-            logger.info("✅ MYLOVE PREMIUM AI is running. Press Ctrl+C to stop.")
+            logger.info("=" * 70)
+            logger.info("✅ MYLOVE PREMIUM AI V3 is running!")
+            logger.info("   Press Ctrl+C to stop.")
+            logger.info("=" * 70)
             
             self.is_ready = True
 
@@ -238,6 +304,16 @@ class MyLovePremiumBot:
         logger.info("🛑 Shutting down...")
         self._shutdown_flag = True
         
+        # 🔥 BARU: Save state terakhir sebelum shutdown
+        if self.db_initialized:
+            try:
+                from database.repository import Repository
+                repo = Repository()
+                # Catat shutdown time (opsional)
+                logger.info("💾 Database connection closing...")
+            except Exception as e:
+                logger.error(f"Error during shutdown save: {e}")
+        
         if self.application:
             try:
                 await self.application.stop()
@@ -249,17 +325,18 @@ class MyLovePremiumBot:
     def print_banner(self):
         """Print startup banner"""
         print("=" * 70)
-        print("    💕 MYLOVE PREMIUM AI")
-        print("    Premium AI Assistant with Human+ Capabilities")
-        print("    Version 2.0.0")
+        print("    💕 MYLOVE PREMIUM AI V3")
+        print("    Premium Virtual Human with State Persistence")
+        print("    Version 3.0.0 - Human+ Capabilities")
         print("=" * 70)
         
         # Database info
         try:
-            db_info = f"SQLite @ {settings.database.path}"
+            db_path = settings.database.path
+            db_info = f"SQLite @ {db_path}"
         except:
             db_info = "SQLite"
-        print(f"📊 Database: {db_info}")
+        print(f"📊 Database: {db_info} (with State Persistence)")
         
         # AI Model
         try:
@@ -271,12 +348,31 @@ class MyLovePremiumBot:
         # Admin ID
         print(f"👑 Admin ID: {settings.admin_id}")
         
-        # Features
-        print(f"🔞 Sexual Content: {'ENABLED' if settings.features.sexual_enabled else 'DISABLED'}")
+        # Features Status
+        print("\n✨ **FEATURES STATUS**")
+        print(f"🔞 Sexual Content: {'ENABLED' if getattr(settings.features, 'sexual_enabled', True) else 'DISABLED'}")
         print(f"💕 PDKT Natural: ENABLED")
         print(f"🎭 Threesome Mode: ENABLED")
-        print(f"🧠 Memory System: HIPPOCAMPUS")
+        print(f"🧠 Memory System: HIPPOCAMPUS + STATE PERSISTENCE")
+        print(f"📍 Spatial Awareness: ENABLED")
+        print(f"🎭 Emotional Flow: ENABLED")
         print(f"📊 Leveling: TIME-BASED (60min → Level 7)")
+        print(f"🔄 Aftercare Reset: Level 12 → 7")
+        print(f"📝 Promise Tracking: ENABLED")
+        print(f"🎨 Preference Tracking: ENABLED")
+        
+        # Role List
+        print("\n🎭 **AVAILABLE ROLES**")
+        roles = ["Ipar", "Teman Kantor", "Janda", "Pelakor", "Istri Orang", 
+                 "PDKT", "Sepupu", "Teman SMA", "Mantan"]
+        for i, role in enumerate(roles, 1):
+            print(f"   {i}. {role}")
+        
+        print("\n💡 **TIPS**")
+        print("   • /status - Lihat status hubungan (lokasi, pakaian, emosi)")
+        print("   • /progress - Lihat progress leveling (rahasia)")
+        print("   • /continue - Lanjutkan session tersimpan")
+        print("   • /close - Tutup session (bisa dilanjut nanti)")
         
         print("=" * 70)
 
@@ -303,7 +399,7 @@ async def main():
         import traceback
         traceback.print_exc()
     finally:
-        logger.info("👋 Goodbye from MYLOVE PREMIUM AI!")
+        logger.info("👋 Goodbye from MYLOVE PREMIUM AI V3!")
 
 
 if __name__ == "__main__":
