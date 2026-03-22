@@ -9,6 +9,7 @@ Koneksi SQLite dengan async support (aiosqlite)
 - Auto migration
 - Performance optimizations (WAL mode, cache)
 - Support close_db untuk graceful shutdown
+- Support fetch_one, fetch_all untuk migrate.py
 =============================================================================
 """
 
@@ -545,7 +546,7 @@ async def close_db():
 
 
 # =============================================================================
-# COMPATIBILITY FUNCTIONS (UNTUK MIGRATE.PY)
+# 🔥 BARU: COMPATIBILITY FUNCTIONS (UNTUK MIGRATE.PY)
 # =============================================================================
 
 async def execute_query(query: str, params: tuple = ()):
@@ -555,15 +556,21 @@ async def execute_query(query: str, params: tuple = ()):
     return cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
 
 
-async def fetch_one_compat(query: str, params: tuple = ()):
-    """Fetch one row (compatibility)"""
-    return await get_db().fetch_one(query, params)
+async def fetch_one(query: str, params: tuple = ()):
+    """Fetch one row (compatibility for migrate.py)"""
+    db = await get_db()
+    return await db.fetch_one(query, params)
 
 
-async def fetch_all_compat(query: str, params: tuple = ()):
-    """Fetch all rows (compatibility)"""
-    return await get_db().fetch_all(query, params)
+async def fetch_all(query: str, params: tuple = ()):
+    """Fetch all rows (compatibility for migrate.py)"""
+    db = await get_db()
+    return await db.fetch_all(query, params)
 
+
+# =============================================================================
+# EXPORTS
+# =============================================================================
 
 __all__ = [
     'DatabaseConnection',
@@ -571,6 +578,6 @@ __all__ = [
     'init_db',
     'close_db',           # 🔥 BARU
     'execute_query',
-    'fetch_one_compat',
-    'fetch_all_compat',
+    'fetch_one',          # 🔥 BARU
+    'fetch_all',          # 🔥 BARU
 ]
