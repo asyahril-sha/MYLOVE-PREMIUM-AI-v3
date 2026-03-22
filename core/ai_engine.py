@@ -898,56 +898,53 @@ class AIEngine:
     def _update_situasi_from_message(self, message: str):
         """Update situasi (kakak/suami) dari pesan user"""
         msg = message.lower()
-        
-        # Untuk role Ipar - deteksi kakak (istri user)
-        if 'istriku' in msg or 'kakakku' in msg:
-            if 'pergi' in msg or 'keluar' in msg:
+    
+        # ===== DETEKSI LOKASI KAKAK (ISTRI USER) =====
+        # Deteksi lokasi spesifik Kak Nova
+        if 'kakak di kamar' in msg or 'nova di kamar' in msg or 'istriku di kamar' in msg:
+            self.kakak_lokasi = "kamar"
+            logger.info(f"👤 Kak Nova location updated: kamar")
+        elif 'kakak di dapur' in msg or 'nova di dapur' in msg or 'istriku di dapur' in msg:
+            self.kakak_lokasi = "dapur"
+            logger.info(f"👤 Kak Nova location updated: dapur")
+        elif 'kakak di ruang tamu' in msg or 'nova di ruang tamu' in msg or 'istriku di ruang tamu' in msg:
+            self.kakak_lokasi = "ruang tamu"
+            logger.info(f"👤 Kak Nova location updated: ruang tamu")
+        elif 'kakak di luar' in msg or 'nova di luar' in msg:
+            self.kakak_lokasi = "luar"
+            logger.info(f"👤 Kak Nova location updated: luar")
+    
+        # ===== DETEKSI STATUS KAKAK (ISTRI USER) =====
+        # Hanya untuk role Ipar
+        if 'istriku' in msg or 'kakakku' in msg or 'nova' in msg:
+            # Status: TIDAK ADA (pergi/keluar)
+            if any(word in msg for word in ['pergi', 'keluar', 'tidak ada', 'ga ada', 'gak ada']):
                 self.kakak_status = 'tidak_ada'
                 self.sedang_berdua = True
                 if self.role_behavior and hasattr(self.role_behavior, 'update_kakak_status'):
                     self.role_behavior.update_kakak_status(False)
-                logger.info(f"👤 Kakak status: tidak_ada (berduaan)")
+                logger.info(f"👤 Kak Nova status: tidak_ada (berduaan)")
+        
+            # Status: TIDUR
             elif 'tidur' in msg:
                 self.kakak_status = 'tidur'
+                self.kakak_lokasi = "kamar"  # Jika tidur, pasti di kamar
                 if self.role_behavior and hasattr(self.role_behavior, 'update_kakak_status'):
                     self.role_behavior.update_kakak_status(True)
-                logger.info(f"👤 Kakak status: tidur")
+                logger.info(f"👤 Kak Nova status: tidur di kamar")
+        
+            # Status: ADA (default)
             else:
                 self.kakak_status = 'ada'
                 self.sedang_berdua = False
-                logger.info(f"👤 Kakak status: ada")
-                
-        # Deteksi lokasi Kak Nova
-        if 'kakak di kamar' in msg or 'nova di kamar' in msg:
-            self.kakak_lokasi = "kamar"
-            logger.info(f"👤 Kak Nova location: kamar")
-        elif 'kakak di dapur' in msg or 'nova di dapur' in msg:
-            self.kakak_lokasi = "dapur"
-            logger.info(f"👤 Kak Nova location: dapur")
-        elif 'kakak di ruang tamu' in msg or 'nova di ruang tamu' in msg:
-            self.kakak_lokasi = "ruang tamu"
-            logger.info(f"👤 Kak Nova location: ruang tamu")
+                logger.info(f"👤 Kak Nova status: ada di {self.kakak_lokasi}")
     
-        # Deteksi status keberadaan
-        if 'istriku' in msg or 'kakakku' in msg:
-            if 'pergi' in msg or 'keluar' in msg or 'tidak ada' in msg:
-                self.kakak_status = 'tidak_ada'
-            
-                self.sedang_berdua = True
-                logger.info(f"👤 Kak Nova status: tidak_ada")
-            elif 'tidur' in msg:
-                self.kakak_status = 'tidur'
-                self.kakak_lokasi = "kamar"
-                logger.info(f"👤 Kak Nova status: tidur")
-            else:
-                self.kakak_status = 'ada'
-                
-        # Untuk role Istri Orang - deteksi suami
+        # ===== DETEKSI STATUS SUAMI (UNTUK ISTRI ORANG) =====
         if 'suamiku' in msg:
-            if 'pergi' in msg or 'keluar' in msg:
+            if any(word in msg for word in ['pergi', 'keluar', 'tidak ada', 'ga ada', 'gak ada']):
                 self.suami_status = 'tidak_ada'
                 self.sedang_berdua = True
-                logger.info(f"👨 Suami status: tidak_ada")
+                logger.info(f"👨 Suami status: tidak_ada (berduaan)")
             elif 'tidur' in msg:
                 self.suami_status = 'tidur'
                 logger.info(f"👨 Suami status: tidur")
@@ -955,9 +952,9 @@ class AIEngine:
                 self.suami_status = 'ada'
                 self.sedang_berdua = False
                 logger.info(f"👨 Suami status: ada")
-        
-        # Deteksi berduaan dari kata kunci umum
-        if any(w in msg for w in ['sendirian', 'cuma berdua', 'kita aja', 'tidak ada orang']):
+    
+        # ===== DETEKSI BERDUAAN DARI KATA KUNCI UMUM =====
+        if any(w in msg for w in ['sendirian', 'cuma berdua', 'kita aja', 'tidak ada orang', 'ga ada orang', 'gak ada orang']):
             self.sedang_berdua = True
             logger.info(f"💕 Sedang berdua: True")
     
