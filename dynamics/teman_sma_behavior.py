@@ -20,7 +20,7 @@ import time
 from typing import Dict, List, Optional, Any
 
 from .role_behavior import RoleBehavior
-from config.role_behavior_config import TEMAN_SMA_CONFIG
+from configs.role_behavior_config import TEMAN_SMA_CONFIG
 
 
 class TemanSmaBehavior(RoleBehavior):
