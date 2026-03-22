@@ -8,6 +8,8 @@ Koneksi SQLite dengan async support (aiosqlite)
 - Connection pooling
 - Auto migration
 - Performance optimizations (WAL mode, cache)
+- Support close_db untuk graceful shutdown
+=============================================================================
 """
 
 import os
@@ -34,8 +36,8 @@ class DatabaseConnection:
     
     def __init__(self, db_path: Path):
         self.db_path = db_path
-        self.pool_size = settings.database.pool_size
-        self.timeout = settings.database.timeout
+        self.pool_size = getattr(settings.database, 'pool_size', 5)
+        self.timeout = getattr(settings.database, 'timeout', 30)
         self._connection = None
         self._initialized = False
         
@@ -47,7 +49,7 @@ class DatabaseConnection:
             
             # Koneksi pertama untuk setup
             self._connection = await aiosqlite.connect(
-                self.db_path,
+                str(self.db_path),
                 timeout=self.timeout
             )
             
@@ -349,6 +351,47 @@ class DatabaseConnection:
             )
         ''')
         
+        # ===== 🔥 BARU: USER SESSIONS TABLE (STATE PERSISTENCE) =====
+        await self._connection.execute('''
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL UNIQUE,
+                session_id TEXT,
+                role TEXT,
+                bot_name TEXT,
+                rel_type TEXT,
+                instance_id TEXT,
+                intimacy_level INTEGER DEFAULT 1,
+                total_chats INTEGER DEFAULT 0,
+                current_location TEXT DEFAULT 'ruang tamu',
+                current_clothing TEXT DEFAULT 'pakaian biasa',
+                current_position TEXT DEFAULT 'santai',
+                current_activity TEXT DEFAULT '',
+                kakak_status TEXT DEFAULT 'ada',
+                suami_status TEXT DEFAULT 'ada',
+                kantor_sepi INTEGER DEFAULT 0,
+                sedang_berdua INTEGER DEFAULT 0,
+                current_emotion TEXT DEFAULT 'calm',
+                arousal_level INTEGER DEFAULT 0,
+                emotional_history TEXT DEFAULT '[]',
+                physical_energy INTEGER DEFAULT 80,
+                physical_hunger INTEGER DEFAULT 30,
+                physical_thirst INTEGER DEFAULT 30,
+                role_arousal INTEGER DEFAULT 0,
+                role_mode_goda INTEGER DEFAULT 0,
+                role_attraction INTEGER DEFAULT 50,
+                scenes TEXT DEFAULT '[]',
+                milestones TEXT DEFAULT '[]',
+                promises TEXT DEFAULT '[]',
+                plans TEXT DEFAULT '[]',
+                user_preferences TEXT DEFAULT '{}',
+                current_scene_id TEXT,
+                relationship_status TEXT DEFAULT 'pdkt',
+                created_at REAL,
+                updated_at REAL
+            )
+        ''')
+        
         # ===== CREATE INDEXES =====
         await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, status)")
         await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(last_message_time)")
@@ -359,6 +402,8 @@ class DatabaseConnection:
         await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_fwb_user ON fwb_relations(user_id, status)")
         await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_hts_user ON hts_relations(user_id, status)")
         await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_hts_expiry ON hts_relations(expiry_time)")
+        await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)")
+        await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_updated_at ON user_sessions(updated_at)")
         
         await self._connection.commit()
         logger.info("✅ Database tables and indexes created")
@@ -372,7 +417,7 @@ class DatabaseConnection:
         conn = None
         try:
             conn = await aiosqlite.connect(
-                self.db_path,
+                str(self.db_path),
                 timeout=self.timeout
             )
             await conn.execute("PRAGMA foreign_keys = ON")
@@ -420,7 +465,7 @@ class DatabaseConnection:
         """Backup database to file"""
         try:
             async with self.get_connection() as conn:
-                await conn.backup(aiosqlite.connect(backup_path))
+                await conn.backup(aiosqlite.connect(str(backup_path)))
             logger.info(f"✅ Database backed up to {backup_path}")
             return True
         except Exception as e:
@@ -434,7 +479,8 @@ class DatabaseConnection:
         tables = [
             'users', 'sessions', 'conversations', 'memories',
             'relationships', 'pdkt_sessions', 'mantan', 'fwb_relations',
-            'hts_relations', 'threesome_sessions', 'preferences', 'milestones'
+            'hts_relations', 'threesome_sessions', 'preferences', 'milestones',
+            'user_sessions'
         ]
         
         for table in tables:
@@ -456,7 +502,7 @@ class DatabaseConnection:
         if self._connection:
             await self._connection.close()
             self._initialized = False
-            logger.info("Database connection closed")
+            logger.info("📁 Database connection closed")
 
 
 # =============================================================================
@@ -482,4 +528,49 @@ async def init_db():
     return db
 
 
-__all__ = ['DatabaseConnection', 'get_db', 'init_db']
+# =============================================================================
+# 🔥 BARU: close_db FUNCTION (UNTUK GRACEFUL SHUTDOWN)
+# =============================================================================
+
+async def close_db():
+    """
+    Close global database connection
+    Gunakan saat shutdown bot untuk graceful shutdown
+    """
+    global _db_instance
+    if _db_instance:
+        await _db_instance.close()
+        _db_instance = None
+        logger.info("📁 Global database connection closed")
+
+
+# =============================================================================
+# COMPATIBILITY FUNCTIONS (UNTUK MIGRATE.PY)
+# =============================================================================
+
+async def execute_query(query: str, params: tuple = ()):
+    """Execute query and return lastrowid (compatibility)"""
+    db = await get_db()
+    cursor = await db.execute(query, params)
+    return cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+
+
+async def fetch_one_compat(query: str, params: tuple = ()):
+    """Fetch one row (compatibility)"""
+    return await get_db().fetch_one(query, params)
+
+
+async def fetch_all_compat(query: str, params: tuple = ()):
+    """Fetch all rows (compatibility)"""
+    return await get_db().fetch_all(query, params)
+
+
+__all__ = [
+    'DatabaseConnection',
+    'get_db',
+    'init_db',
+    'close_db',           # 🔥 BARU
+    'execute_query',
+    'fetch_one_compat',
+    'fetch_all_compat',
+]
