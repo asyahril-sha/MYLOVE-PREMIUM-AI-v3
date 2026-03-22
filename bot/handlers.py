@@ -26,6 +26,9 @@ from core.ai_engine import AIEngine
 # Import repository untuk session permanent
 from database.repository import Repository
 
+# For Session Command
+from session.continuation import SessionContinuation
+
 # =============================================================================
 # IMPORTS V3 - PDKT, MANTAN, FWB, RANKING, SESSION
 # =============================================================================
@@ -1357,7 +1360,7 @@ async def climaxhistory_command(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 # =============================================================================
-# 13. HTS COMMAND (NEW)
+# HTS COMMAND
 # =============================================================================
 
 async def hts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1418,66 +1421,95 @@ async def hts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =============================================================================
 
 async def continue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lihat dan lanjutkan session tersimpan"""
-    user_id = update.effective_user.id
-    args = context.args
+    """
+    Lihat dan lanjutkan session tersimpan
     
-    continuation = await get_session_continuation()
-    
-    if not args:
-        sessions = await continuation.get_continuable_sessions(user_id)
+    Usage:
+        /continue - Menampilkan daftar session
+        /continue 1 - Melanjutkan session nomor 1
+        /continue MYLOVE-SARI-IPAR-123-20240315-001 - Melanjutkan dengan ID langsung
+    """
+    try:
+        user_id = update.effective_user.id
+        args = context.args
         
-        if not sessions:
-            await update.message.reply_text(
-                "📋 **DAFTAR SESSION**\n\n"
-                "Belum ada session tersimpan.\n"
-                "Mulai dengan /start untuk membuat session baru."
-            )
+        # Dapatkan continuation instance
+        continuation = await get_session_continuation()
+        
+        # Jika tanpa argumen, tampilkan daftar session
+        if not args:
+            sessions = await continuation.get_continuable_sessions(user_id)
+            
+            if not sessions:
+                await update.message.reply_text(
+                    "📋 **DAFTAR SESSION**\n\n"
+                    "Belum ada session tersimpan.\n"
+                    "Mulai dengan /start untuk membuat session baru.",
+                    parse_mode='HTML'
+                )
+                return
+            
+            # Format daftar session
+            lines = ["📋 **DAFTAR SESSION**"]
+            lines.append("_(pilih dengan /continue [nomor])_")
+            lines.append("")
+            
+            for i, session in enumerate(sessions[:10], 1):
+                # Status
+                status = "🟢 ACTIVE" if session.get('is_active') else "⚪ CLOSED"
+                
+                # Progress bar level
+                level = session.get('intimacy_level', 1)
+                level_bar = "❤️" * level + "🖤" * (12 - level)
+                
+                # Waktu terakhir
+                age_days = session.get('age_days', 0)
+                if age_days == 0:
+                    age_text = "Hari ini"
+                elif age_days == 1:
+                    age_text = "Kemarin"
+                else:
+                    age_text = f"{age_days} hari lalu"
+                
+                # Summary
+                summary = session.get('summary', '')
+                if len(summary) > 50:
+                    summary = summary[:50] + "..."
+                
+                lines.append(
+                    f"{i}. **{session['bot_name']}** ({session['role'].title()}) {status}\n"
+                    f"   📈 Level: {level}/12 {level_bar}\n"
+                    f"   💬 {session.get('total_messages', 0)} pesan\n"
+                    f"   🕐 {age_text}\n"
+                    f"   📝 {summary}"
+                )
+                lines.append("")
+            
+            lines.append("💡 **Cara pakai:**")
+            lines.append("• `/continue 1` - Lanjut session nomor 1")
+            lines.append("• `/continue MYLOVE-SARI-IPAR-123-20240315-001` - Pakai ID langsung")
+            
+            await update.message.reply_text("\n".join(lines), parse_mode='HTML')
             return
         
-        for s in sessions:
-            s['sort_score'] = (s['intimacy_level'] * 10) + (s['total_messages'] / 10)
+        # Jika ada argumen, coba lanjutkan session
+        input_str = ' '.join(args)
         
-        sessions.sort(key=lambda x: (-x['is_active'], -x['sort_score']))
-        
-        lines = ["📋 **DAFTAR SESSION**"]
-        lines.append("_(pilih dengan /continue [nomor])_")
-        lines.append("")
-        
-        for i, session in enumerate(sessions[:10], 1):
-            status = "🟢 ACTIVE" if session['is_active'] else "⚪ CLOSED"
-            level_bar = "❤️" * session['intimacy_level'] + "🖤" * (12 - session['intimacy_level'])
-            
-            lines.append(
-                f"{i}. **{session['bot_name']}** ({session['role'].title()}) {status}\n"
-                f"   📈 Level: {session['intimacy_level']}/12 {level_bar}\n"
-                f"   💬 {session['total_messages']} pesan\n"
-                f"   🕐 {session.get('age_days', 0)} hari lalu\n"
-                f"   📝 {session['summary'][:50]}..."
-            )
-        
-        lines.append("")
-        lines.append("💡 **Cara pakai:**")
-        lines.append("• `/continue 1` - Lanjut session nomor 1")
-        lines.append("• `/continue MYLOVE-SARI-IPAR-123-20240315-001` - Pakai ID langsung")
-        
-        await update.message.reply_text("\n".join(lines), parse_mode='HTML')
-        return
-    
-    input_str = ' '.join(args)
-    
-    try:
+        # Cari session berdasarkan input
         session_data = await continuation.find_session_by_input(user_id, input_str)
         
         if not session_data:
             await update.message.reply_text(
                 "❌ Session tidak ditemukan.\n"
-                "Ketik /continue untuk lihat daftar session."
+                "Ketik /continue untuk lihat daftar session.",
+                parse_mode='HTML'
             )
             return
         
+        # Lanjutkan session
         result = await continuation.continue_session(user_id, session_data['id'])
         
+        # Restore data ke context user
         context.user_data['current_session'] = session_data['id']
         context.user_data['current_role'] = session_data['role']
         context.user_data['bot_name'] = session_data.get('bot_name', session_data['role'].title())
@@ -1485,9 +1517,11 @@ async def continue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['total_chats'] = session_data.get('total_messages', 0)
         context.user_data['current_location'] = session_data.get('location', 'ruang tamu')
         
+        # Restore relationship status
         rel_status = session_data.get('relationship_status', 'pdkt')
         context.user_data['relationship_status'] = rel_status
         
+        # Kirim pesan sukses
         await update.message.reply_text(
             f"🔄 **Melanjutkan Session**\n\n"
             f"{result['context']}\n\n"
@@ -1496,11 +1530,12 @@ async def continue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
     except ValueError as e:
-        await update.message.reply_text(f"❌ {str(e)}")
+        await update.message.reply_text(f"❌ {str(e)}", parse_mode='HTML')
     except Exception as e:
         logger.error(f"Error in continue command: {e}")
         await update.message.reply_text(
-            "❌ Gagal melanjutkan session. Coba lagi nanti."
+            "❌ Gagal melanjutkan session. Coba lagi nanti.",
+            parse_mode='HTML'
         )
 
 
