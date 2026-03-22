@@ -916,7 +916,32 @@ class AIEngine:
                 self.kakak_status = 'ada'
                 self.sedang_berdua = False
                 logger.info(f"👤 Kakak status: ada")
-        
+                
+        # Deteksi lokasi Kak Nova
+        if 'kakak di kamar' in msg or 'nova di kamar' in msg:
+            self.kakak_lokasi = "kamar"
+            logger.info(f"👤 Kak Nova location: kamar")
+        elif 'kakak di dapur' in msg or 'nova di dapur' in msg:
+            self.kakak_lokasi = "dapur"
+            logger.info(f"👤 Kak Nova location: dapur")
+        elif 'kakak di ruang tamu' in msg or 'nova di ruang tamu' in msg:
+            self.kakak_lokasi = "ruang tamu"
+            logger.info(f"👤 Kak Nova location: ruang tamu")
+    
+        # Deteksi status keberadaan
+        if 'istriku' in msg or 'kakakku' in msg:
+            if 'pergi' in msg or 'keluar' in msg or 'tidak ada' in msg:
+                self.kakak_status = 'tidak_ada'
+            
+                self.sedang_berdua = True
+                logger.info(f"👤 Kak Nova status: tidak_ada")
+            elif 'tidur' in msg:
+                self.kakak_status = 'tidur'
+                self.kakak_lokasi = "kamar"
+                logger.info(f"👤 Kak Nova status: tidur")
+            else:
+                self.kakak_status = 'ada'
+                
         # Untuk role Istri Orang - deteksi suami
         if 'suamiku' in msg:
             if 'pergi' in msg or 'keluar' in msg:
