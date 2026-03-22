@@ -2,74 +2,60 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-MYLOVE PREMIUM AI - DATABASE MIGRATION
+MYLOVE PREMIUM AI - DATABASE MIGRATIONS
 =============================================================================
-Migrasi database dari V1 ke V2
-Cukup jalankan sekali: python database/migrate.py
+Semua migrasi database untuk MYLOVE V3 dengan state persistence
+=============================================================================
 """
 
-import sqlite3
 import time
-import os
+import logging
+import json
 from pathlib import Path
-from datetime import datetime
+from typing import Optional, List, Dict, Any
+
+from database.connection import get_db, execute_query, fetch_one, fetch_all
+
+logger = logging.getLogger(__name__)
 
 
-def migrate():
-    """Migrasi database ke V2"""
+# =============================================================================
+# TABLE CREATION FUNCTIONS
+# =============================================================================
+
+async def create_users_table():
+    """Create users table"""
+    db = await get_db()
     
-    print("=" * 60)
-    print("🚀 MYLOVE PREMIUM AI - DATABASE MIGRATION")
-    print("=" * 60)
-    
-    # Lokasi database
-    db_path = Path("data/mylove.db")
-    
-    # Pastikan folder data ada
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Backup jika sudah ada
-    if db_path.exists():
-        backup_path = db_path.parent / f"mylove_backup_{int(time.time())}.db"
-        print(f"📁 Creating backup: {backup_path}")
-        import shutil
-        shutil.copy2(db_path, backup_path)
-        print(f"✅ Backup created: {backup_path}")
-    
-    # Konek ke database
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    print(f"📁 Database: {db_path}")
-    print("🔄 Running migrations...")
-    
-    # =========================================================================
-    # TABEL USERS
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            telegram_id INTEGER UNIQUE NOT NULL,
+            telegram_id INTEGER NOT NULL UNIQUE,
             username TEXT,
             first_name TEXT,
             last_name TEXT,
             created_at REAL NOT NULL,
             last_active REAL NOT NULL,
             total_interactions INTEGER DEFAULT 0,
-            preferences TEXT,
-            settings TEXT
+            preferences TEXT DEFAULT '{}',
+            settings TEXT DEFAULT '{}'
         )
     """)
-    print("  ✅ users")
     
-    # =========================================================================
-    # TABEL SESSIONS (DENGAN BOT_NAME)
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)")
+    await db.commit()
+    logger.info("✅ users table created")
+
+
+async def create_sessions_table():
+    """Create sessions table"""
+    db = await get_db()
+    
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
-            bot_name TEXT NOT NULL DEFAULT 'Aurora',
+            bot_name TEXT NOT NULL,
             role TEXT NOT NULL,
             status TEXT DEFAULT 'active',
             start_time REAL NOT NULL,
@@ -79,50 +65,47 @@ def migrate():
             intimacy_level INTEGER DEFAULT 1,
             location TEXT,
             summary TEXT,
-            metadata TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (telegram_id)
+            metadata TEXT DEFAULT '{}',
+            created_at REAL DEFAULT (strftime('%s', 'now')),
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ sessions (with bot_name)")
-
-    # ===== TAMBAHKAN KODE INI DI SINI =====
-    # ===== ADD COLUMN date AND sequence IF NOT EXISTS =====
-    try:
-        cursor.execute("ALTER TABLE sessions ADD COLUMN date TEXT")
-        print("  ✅ Added column date to sessions")
-    except sqlite3.OperationalError:
-        # Column already exists
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE sessions ADD COLUMN sequence INTEGER")
-        print("  ✅ Added column sequence to sessions")
-    except sqlite3.OperationalError:
-        # Column already exists
-        pass
-    # ===== END TAMBAHAN =====
     
-    # =========================================================================
-    # TABEL CONVERSATIONS
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)")
+    await db.commit()
+    logger.info("✅ sessions table created")
+
+
+async def create_conversations_table():
+    """Create conversations table"""
+    db = await get_db()
+    
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS conversations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL,
             timestamp REAL NOT NULL,
-            user_message TEXT,
-            bot_response TEXT,
+            user_message TEXT NOT NULL,
+            bot_response TEXT NOT NULL,
             intent TEXT,
             mood TEXT,
-            FOREIGN KEY (session_id) REFERENCES sessions (id)
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ conversations")
     
-    # =========================================================================
-    # TABEL PDKT SESSIONS
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_conversations_session_id ON conversations(session_id)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)")
+    await db.commit()
+    logger.info("✅ conversations table created")
+
+
+async def create_pdkt_tables():
+    """Create PDKT related tables"""
+    db = await get_db()
+    
+    # PDKT sessions table
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS pdkt_sessions (
             id TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -134,7 +117,7 @@ def migrate():
             chemistry_level TEXT DEFAULT 'biasa',
             mood TEXT DEFAULT 'calm',
             level INTEGER DEFAULT 1,
-            total_duration REAL DEFAULT 0.0,
+            total_duration REAL DEFAULT 0,
             total_chats INTEGER DEFAULT 0,
             total_intim INTEGER DEFAULT 0,
             total_climax INTEGER DEFAULT 0,
@@ -143,32 +126,36 @@ def migrate():
             paused_at REAL,
             ended_at REAL,
             end_reason TEXT,
-            inner_thoughts TEXT,
-            milestones TEXT,
-            metadata TEXT
+            inner_thoughts TEXT DEFAULT '[]',
+            milestones TEXT DEFAULT '[]',
+            metadata TEXT DEFAULT '{}',
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ pdkt_sessions")
     
-    # =========================================================================
-    # TABEL PDKT INNER THOUGHTS
-    # =========================================================================
-    cursor.execute("""
+    # PDKT inner thoughts table
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS pdkt_inner_thoughts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pdkt_id TEXT NOT NULL,
             thought TEXT NOT NULL,
             context TEXT,
             timestamp REAL NOT NULL,
-            FOREIGN KEY (pdkt_id) REFERENCES pdkt_sessions (id)
+            FOREIGN KEY (pdkt_id) REFERENCES pdkt_sessions(id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ pdkt_inner_thoughts")
     
-    # =========================================================================
-    # TABEL MANTAN
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_pdkt_user_id ON pdkt_sessions(user_id)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_pdkt_status ON pdkt_sessions(status)")
+    await db.commit()
+    logger.info("✅ PDKT tables created")
+
+
+async def create_mantan_tables():
+    """Create Mantan related tables"""
+    db = await get_db()
+    
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS mantan (
             id TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -178,8 +165,8 @@ def migrate():
             status TEXT DEFAULT 'putus',
             putus_time REAL NOT NULL,
             putus_reason TEXT NOT NULL,
-            chemistry_history TEXT,
-            milestones TEXT,
+            chemistry_history TEXT DEFAULT '[]',
+            milestones TEXT DEFAULT '[]',
             total_chats INTEGER DEFAULT 0,
             total_intim INTEGER DEFAULT 0,
             total_climax INTEGER DEFAULT 0,
@@ -187,17 +174,23 @@ def migrate():
             first_intim_time REAL,
             become_pacar_time REAL,
             last_chat_time REAL NOT NULL,
-            fwb_requests TEXT,
+            fwb_requests TEXT DEFAULT '[]',
             fwb_start_time REAL,
-            fwb_end_time REAL
+            fwb_end_time REAL,
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ mantan")
     
-    # =========================================================================
-    # TABEL FWB RELATIONS
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_mantan_user_id ON mantan(user_id)")
+    await db.commit()
+    logger.info("✅ Mantan tables created")
+
+
+async def create_fwb_tables():
+    """Create FWB related tables"""
+    db = await get_db()
+    
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS fwb_relations (
             id TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -211,17 +204,25 @@ def migrate():
             climax_count INTEGER DEFAULT 0,
             intim_count INTEGER DEFAULT 0,
             total_chats INTEGER DEFAULT 0,
-            pause_history TEXT,
+            pause_history TEXT DEFAULT '[]',
             ended_at REAL,
-            end_reason TEXT
+            end_reason TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE,
+            FOREIGN KEY (mantan_id) REFERENCES mantan(id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ fwb_relations")
     
-    # =========================================================================
-    # TABEL HTS RELATIONS
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_fwb_user_id ON fwb_relations(user_id)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_fwb_status ON fwb_relations(status)")
+    await db.commit()
+    logger.info("✅ FWB tables created")
+
+
+async def create_hts_tables():
+    """Create HTS related tables"""
+    db = await get_db()
+    
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS hts_relations (
             id TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -236,15 +237,22 @@ def migrate():
             intimacy_level INTEGER DEFAULT 7,
             total_chats INTEGER DEFAULT 0,
             total_intim INTEGER DEFAULT 0,
-            history TEXT
+            history TEXT DEFAULT '[]',
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ hts_relations")
     
-    # =========================================================================
-    # TABEL MEMORIES
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_hts_user_id ON hts_relations(user_id)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_hts_status ON hts_relations(status)")
+    await db.commit()
+    logger.info("✅ HTS tables created")
+
+
+async def create_memories_table():
+    """Create memories table"""
+    db = await get_db()
+    
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS memories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -254,40 +262,90 @@ def migrate():
             importance REAL DEFAULT 0.5,
             emotional_tag TEXT,
             timestamp REAL NOT NULL,
-            metadata TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (telegram_id)
+            metadata TEXT DEFAULT '{}',
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ memories")
     
-    # =========================================================================
-    # TABEL RELATIONSHIPS
-    # =========================================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS relationships (
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_memories_user_id ON memories(user_id)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_memories_memory_type ON memories(memory_type)")
+    await db.commit()
+    logger.info("✅ memories table created")
+
+
+async def create_preferences_table():
+    """Create preferences table"""
+    db = await get_db()
+    
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS preferences (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            bot_name TEXT NOT NULL DEFAULT 'Aurora',
-            role TEXT NOT NULL,
-            instance_id TEXT,
-            status TEXT DEFAULT 'hts',
-            intimacy_level INTEGER DEFAULT 1,
-            total_interactions INTEGER DEFAULT 0,
-            total_intim_sessions INTEGER DEFAULT 0,
-            total_climax INTEGER DEFAULT 0,
-            created_at REAL NOT NULL,
-            last_interaction REAL NOT NULL,
-            preferences TEXT,
-            milestones TEXT,
-            history TEXT
+            role TEXT,
+            pref_type TEXT NOT NULL,
+            item TEXT NOT NULL,
+            score REAL DEFAULT 0.5,
+            count INTEGER DEFAULT 1,
+            last_updated REAL NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE,
+            UNIQUE(user_id, role, pref_type, item)
         )
     """)
-    print("  ✅ relationships")
     
-    # =========================================================================
-    # TABEL THREESOME SESSIONS
-    # =========================================================================
-    cursor.execute("""
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_preferences_user_id ON preferences(user_id)")
+    await db.commit()
+    logger.info("✅ preferences table created")
+
+
+async def create_milestones_table():
+    """Create milestones table"""
+    db = await get_db()
+    
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS milestones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            role TEXT,
+            milestone_type TEXT NOT NULL,
+            description TEXT,
+            timestamp REAL NOT NULL,
+            intimacy_level INTEGER,
+            metadata TEXT DEFAULT '{}',
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
+        )
+    """)
+    
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_milestones_user_id ON milestones(user_id)")
+    await db.commit()
+    logger.info("✅ milestones table created")
+
+
+async def create_backups_table():
+    """Create backups table"""
+    db = await get_db()
+    
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS backups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            size INTEGER,
+            created_at REAL NOT NULL,
+            type TEXT DEFAULT 'auto',
+            status TEXT DEFAULT 'completed',
+            metadata TEXT DEFAULT '{}'
+        )
+    """)
+    
+    await db.commit()
+    logger.info("✅ backups table created")
+
+
+async def create_threesome_tables():
+    """Create threesome related tables"""
+    db = await get_db()
+    
+    # Threesome sessions table
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS threesome_sessions (
             id TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -302,89 +360,52 @@ def migrate():
             aftercare_needed INTEGER DEFAULT 0,
             current_focus INTEGER,
             last_pattern TEXT,
-            participants TEXT,
-            interactions TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (telegram_id)
+            participants TEXT DEFAULT '[]',
+            interactions TEXT DEFAULT '[]',
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ threesome_sessions")
     
-    # =========================================================================
-    # TABEL THREESOME PARTICIPANTS
-    # =========================================================================
-    cursor.execute("""
+    # Threesome participants table
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS threesome_participants (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             threesome_session_id TEXT NOT NULL,
             user_id INTEGER NOT NULL,
-            bot_name TEXT NOT NULL DEFAULT 'Aurora',
+            bot_name TEXT NOT NULL,
             role TEXT NOT NULL,
             instance_id TEXT,
             participant_type TEXT NOT NULL,
             name TEXT NOT NULL,
             intimacy_level INTEGER DEFAULT 1,
             status TEXT DEFAULT 'active',
-            FOREIGN KEY (threesome_session_id) REFERENCES threesome_sessions (id)
+            FOREIGN KEY (threesome_session_id) REFERENCES threesome_sessions(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
         )
     """)
-    print("  ✅ threesome_participants")
     
-    # =========================================================================
-    # TABEL PREFERENCES
-    # =========================================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS preferences (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            role TEXT,
-            pref_type TEXT NOT NULL,
-            item TEXT NOT NULL,
-            score REAL DEFAULT 0.5,
-            count INTEGER DEFAULT 1,
-            last_updated REAL NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users (telegram_id)
-        )
-    """)
-    print("  ✅ preferences")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_threesome_user_id ON threesome_sessions(user_id)")
+    await db.commit()
+    logger.info("✅ Threesome tables created")
+
+
+async def create_user_sessions_table():
+    """
+    Membuat tabel user_sessions untuk menyimpan state permanen user
+    """
+    db = await get_db()
     
-    # =========================================================================
-    # TABEL MILESTONES
-    # =========================================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS milestones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            role TEXT,
-            milestone_type TEXT NOT NULL,
-            description TEXT,
-            timestamp REAL NOT NULL,
-            intimacy_level INTEGER,
-            metadata TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (telegram_id)
-        )
-    """)
-    print("  ✅ milestones")
+    # Cek apakah tabel sudah ada
+    result = await db.fetch_one(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='user_sessions'"
+    )
     
-    # =========================================================================
-    # TABEL BACKUPS
-    # =========================================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS backups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT NOT NULL,
-            size INTEGER,
-            created_at REAL NOT NULL,
-            type TEXT DEFAULT 'auto',
-            status TEXT DEFAULT 'completed',
-            metadata TEXT
-        )
-    """)
-    print("  ✅ backups")
+    if result:
+        logger.info("📋 Table user_sessions already exists")
+        return
     
-    # =========================================================================
-    # TABEL USER SESSIONS (UNTUK PERMANENT STORAGE)
-    # =========================================================================
-    cursor.execute("""
+    # Buat tabel dengan semua kolom
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS user_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL UNIQUE,
@@ -398,136 +419,415 @@ def migrate():
             current_location TEXT DEFAULT 'ruang tamu',
             current_clothing TEXT DEFAULT 'pakaian biasa',
             current_position TEXT DEFAULT 'santai',
+            current_activity TEXT DEFAULT '',
+            kakak_status TEXT DEFAULT 'ada',
+            suami_status TEXT DEFAULT 'ada',
+            kantor_sepi INTEGER DEFAULT 0,
+            sedang_berdua INTEGER DEFAULT 0,
+            current_emotion TEXT DEFAULT 'calm',
+            arousal_level INTEGER DEFAULT 0,
+            emotional_history TEXT DEFAULT '[]',
+            physical_energy INTEGER DEFAULT 80,
+            physical_hunger INTEGER DEFAULT 30,
+            physical_thirst INTEGER DEFAULT 30,
+            role_arousal INTEGER DEFAULT 0,
+            role_mode_goda INTEGER DEFAULT 0,
+            role_attraction INTEGER DEFAULT 50,
+            scenes TEXT DEFAULT '[]',
+            milestones TEXT DEFAULT '[]',
+            promises TEXT DEFAULT '[]',
+            plans TEXT DEFAULT '[]',
+            user_preferences TEXT DEFAULT '{}',
+            current_scene_id TEXT,
             relationship_status TEXT DEFAULT 'pdkt',
             created_at REAL,
             updated_at REAL
         )
     """)
-    print("  ✅ user_sessions")
     
-    # =========================================================================
-    # CREATE INDEXES
-    # =========================================================================
+    # Buat indeks untuk performa
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_role ON user_sessions(role)")
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_updated_at ON user_sessions(updated_at)")
     
-    # Users indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_active ON users(last_active)")
+    await db.commit()
     
-    # Sessions indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(last_message_time)")
+    logger.info("✅ Table user_sessions created successfully")
+
+
+async def fix_missing_columns():
+    """
+    Perbaiki kolom yang hilang di tabel user_sessions
+    Jalankan ini jika ada error 'no such column'
+    """
+    db = await get_db()
     
-    # Conversations indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_session ON conversations(session_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_time ON conversations(timestamp)")
+    # Cek apakah tabel ada
+    result = await db.fetch_one(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='user_sessions'"
+    )
     
-    # PDKT indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_pdkt_user ON pdkt_sessions(user_id, status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_pdkt_role ON pdkt_sessions(role)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_pdkt_thoughts ON pdkt_inner_thoughts(pdkt_id)")
+    if not result:
+        logger.warning("⚠️ user_sessions table not found, creating...")
+        await create_user_sessions_table()
+        return
     
-    # Mantan indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_mantan_user ON mantan(user_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_mantan_status ON mantan(status)")
+    # Daftar kolom yang harus ada
+    columns_to_add = {
+        'current_activity': "TEXT DEFAULT ''",
+        'kakak_status': "TEXT DEFAULT 'ada'",
+        'suami_status': "TEXT DEFAULT 'ada'",
+        'kantor_sepi': "INTEGER DEFAULT 0",
+        'sedang_berdua': "INTEGER DEFAULT 0",
+        'current_emotion': "TEXT DEFAULT 'calm'",
+        'arousal_level': "INTEGER DEFAULT 0",
+        'emotional_history': "TEXT DEFAULT '[]'",
+        'physical_energy': "INTEGER DEFAULT 80",
+        'physical_hunger': "INTEGER DEFAULT 30",
+        'physical_thirst': "INTEGER DEFAULT 30",
+        'role_arousal': "INTEGER DEFAULT 0",
+        'role_mode_goda': "INTEGER DEFAULT 0",
+        'role_attraction': "INTEGER DEFAULT 50",
+        'scenes': "TEXT DEFAULT '[]'",
+        'milestones': "TEXT DEFAULT '[]'",
+        'promises': "TEXT DEFAULT '[]'",
+        'plans': "TEXT DEFAULT '[]'",
+        'user_preferences': "TEXT DEFAULT '{}'",
+        'current_scene_id': "TEXT",
+    }
     
-    # FWB indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_fwb_user ON fwb_relations(user_id, status)")
+    # Dapatkan kolom yang sudah ada
+    existing = await db.fetch_all("PRAGMA table_info(user_sessions)")
+    existing_names = [col['name'] for col in existing]
     
-    # HTS indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_hts_user ON hts_relations(user_id, status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_hts_expiry ON hts_relations(expiry_time)")
+    added = 0
+    for col_name, col_def in columns_to_add.items():
+        if col_name not in existing_names:
+            try:
+                await db.execute(f"ALTER TABLE user_sessions ADD COLUMN {col_name} {col_def}")
+                logger.info(f"✅ Added missing column: {col_name}")
+                added += 1
+            except Exception as e:
+                logger.warning(f"⚠️ Could not add column {col_name}: {e}")
     
-    # Memories indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id, role)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type)")
+    if added > 0:
+        await db.commit()
+        logger.info(f"📊 Fixed {added} missing columns")
+    else:
+        logger.info("✅ No missing columns found")
     
-    # Relationships indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_relationships_user ON relationships(user_id, status)")
+    return added
+
+
+# =============================================================================
+# MAIN MIGRATION FUNCTION
+# =============================================================================
+
+async def run_migrations():
+    """
+    Menjalankan semua migrasi database
+    """
+    logger.info("=" * 50)
+    logger.info("🚀 Running database migrations...")
+    logger.info("=" * 50)
     
-    # Threesome indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_threesome_user ON threesome_sessions(user_id)")
+    # ===== TABEL UTAMA =====
+    await create_users_table()
+    await create_sessions_table()
+    await create_conversations_table()
     
-    # Preferences indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_preferences_user ON preferences(user_id, pref_type)")
+    # ===== PDKT TABLES =====
+    await create_pdkt_tables()
     
-    # Milestones indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_milestones_user ON milestones(user_id, timestamp)")
+    # ===== MANTAN TABLES =====
+    await create_mantan_tables()
     
-    # User sessions indexes
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id)")
+    # ===== FWB TABLES =====
+    await create_fwb_tables()
     
-    print("  ✅ indexes")
+    # ===== HTS TABLES =====
+    await create_hts_tables()
     
-    # =========================================================================
-    # MIGRATION LOG TABLE
-    # =========================================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS migration_log (
-            version TEXT PRIMARY KEY,
-            migrated_at REAL NOT NULL,
-            description TEXT
+    # ===== MEMORY TABLES =====
+    await create_memories_table()
+    await create_preferences_table()
+    await create_milestones_table()
+    
+    # ===== BACKUP TABLE =====
+    await create_backups_table()
+    
+    # ===== THREESOME TABLES =====
+    await create_threesome_tables()
+    
+    # ===== USER SESSIONS TABLE (BARU) =====
+    await create_user_sessions_table()
+    
+    # ===== VERIFIKASI =====
+    db = await get_db()
+    
+    # Hitung jumlah tabel
+    tables = await db.fetch_all("SELECT name FROM sqlite_master WHERE type='table'")
+    logger.info(f"📊 Total tables: {len(tables)}")
+    
+    # Tampilkan daftar tabel
+    for table in tables:
+        logger.info(f"   • {table['name']}")
+    
+    logger.info("=" * 50)
+    logger.info("✅ All migrations completed successfully!")
+    logger.info("=" * 50)
+
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+async def reset_user_session(user_id: int):
+    """
+    Reset session user (hapus semua data user)
+    Gunakan dengan hati-hati, hanya untuk debugging
+    
+    Args:
+        user_id: ID Telegram user
+    """
+    db = await get_db()
+    
+    await db.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
+    await db.commit()
+    
+    logger.info(f"🗑️ Reset user session for user {user_id}")
+
+
+async def cleanup_old_sessions(days: int = 30):
+    """
+    Membersihkan session yang sudah tidak aktif lebih dari X hari
+    
+    Args:
+        days: Jumlah hari untuk session dianggap kadaluarsa
+    """
+    db = await get_db()
+    
+    cutoff = time.time() - (days * 86400)
+    
+    # Hapus session yang tidak aktif
+    result = await db.execute(
+        "DELETE FROM user_sessions WHERE updated_at < ?",
+        (cutoff,)
+    )
+    
+    deleted = result.rowcount
+    
+    if deleted > 0:
+        await db.commit()
+        logger.info(f"🧹 Cleaned up {deleted} old sessions (inactive > {days} days)")
+    else:
+        logger.info(f"🧹 No old sessions to clean up")
+
+
+async def backup_user_sessions(backup_dir: str = "backups"):
+    """
+    Backup semua user session ke file JSON
+    
+    Args:
+        backup_dir: Direktori untuk menyimpan backup
+    """
+    import os
+    from datetime import datetime
+    
+    db = await get_db()
+    
+    # Buat direktori jika belum ada
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # Ambil semua session
+    sessions = await db.fetch_all("SELECT * FROM user_sessions")
+    
+    if not sessions:
+        logger.info("📭 No user sessions to backup")
+        return
+    
+    # Buat nama file backup
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = os.path.join(backup_dir, f"user_sessions_backup_{timestamp}.json")
+    
+    # Convert ke list dict
+    sessions_list = []
+    for session in sessions:
+        sessions_list.append(dict(session))
+    
+    # Simpan ke file
+    with open(backup_file, 'w', encoding='utf-8') as f:
+        json.dump(sessions_list, f, indent=2, ensure_ascii=False, default=str)
+    
+    logger.info(f"💾 Backup saved: {backup_file} ({len(sessions_list)} sessions)")
+
+
+async def restore_user_sessions(backup_file: str):
+    """
+    Restore user session dari file backup
+    
+    Args:
+        backup_file: Path file backup JSON
+    """
+    import os
+    
+    db = await get_db()
+    
+    if not os.path.exists(backup_file):
+        logger.error(f"❌ Backup file not found: {backup_file}")
+        return
+    
+    with open(backup_file, 'r', encoding='utf-8') as f:
+        sessions = json.load(f)
+    
+    if not sessions:
+        logger.warning("⚠️ No sessions in backup file")
+        return
+    
+    restored = 0
+    skipped = 0
+    
+    for session in sessions:
+        user_id = session.get('user_id')
+        
+        if not user_id:
+            skipped += 1
+            continue
+        
+        # Cek apakah sudah ada
+        existing = await db.fetch_one(
+            "SELECT id FROM user_sessions WHERE user_id = ?",
+            (user_id,)
         )
+        
+        now = time.time()
+        
+        if existing:
+            # Update existing
+            await db.execute("""
+                UPDATE user_sessions SET
+                    session_id = ?, role = ?, bot_name = ?, rel_type = ?,
+                    instance_id = ?, intimacy_level = ?, total_chats = ?,
+                    current_location = ?, current_clothing = ?, current_position = ?,
+                    current_activity = ?, kakak_status = ?, suami_status = ?,
+                    kantor_sepi = ?, sedang_berdua = ?, current_emotion = ?,
+                    arousal_level = ?, physical_energy = ?, physical_hunger = ?,
+                    physical_thirst = ?, role_arousal = ?, role_mode_goda = ?,
+                    role_attraction = ?, scenes = ?, milestones = ?,
+                    promises = ?, plans = ?, user_preferences = ?,
+                    current_scene_id = ?, relationship_status = ?, updated_at = ?
+                WHERE user_id = ?
+            """, (
+                session.get('session_id'), session.get('role'), session.get('bot_name'),
+                session.get('rel_type'), session.get('instance_id'), session.get('intimacy_level', 1),
+                session.get('total_chats', 0), session.get('current_location', 'ruang tamu'),
+                session.get('current_clothing', 'pakaian biasa'), session.get('current_position', 'santai'),
+                session.get('current_activity', ''), session.get('kakak_status', 'ada'),
+                session.get('suami_status', 'ada'), session.get('kantor_sepi', 0),
+                session.get('sedang_berdua', 0), session.get('current_emotion', 'calm'),
+                session.get('arousal_level', 0), session.get('physical_energy', 80),
+                session.get('physical_hunger', 30), session.get('physical_thirst', 30),
+                session.get('role_arousal', 0), session.get('role_mode_goda', 0),
+                session.get('role_attraction', 50), session.get('scenes', '[]'),
+                session.get('milestones', '[]'), session.get('promises', '[]'),
+                session.get('plans', '[]'), session.get('user_preferences', '{}'),
+                session.get('current_scene_id'), session.get('relationship_status', 'pdkt'),
+                now, user_id
+            ))
+        else:
+            # Insert new
+            await db.execute("""
+                INSERT INTO user_sessions (
+                    user_id, session_id, role, bot_name, rel_type, instance_id,
+                    intimacy_level, total_chats, current_location, current_clothing,
+                    current_position, current_activity, kakak_status, suami_status,
+                    kantor_sepi, sedang_berdua, current_emotion, arousal_level,
+                    physical_energy, physical_hunger, physical_thirst, role_arousal,
+                    role_mode_goda, role_attraction, scenes, milestones, promises,
+                    plans, user_preferences, current_scene_id, relationship_status,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id, session.get('session_id'), session.get('role'), session.get('bot_name'),
+                session.get('rel_type'), session.get('instance_id'), session.get('intimacy_level', 1),
+                session.get('total_chats', 0), session.get('current_location', 'ruang tamu'),
+                session.get('current_clothing', 'pakaian biasa'), session.get('current_position', 'santai'),
+                session.get('current_activity', ''), session.get('kakak_status', 'ada'),
+                session.get('suami_status', 'ada'), session.get('kantor_sepi', 0),
+                session.get('sedang_berdua', 0), session.get('current_emotion', 'calm'),
+                session.get('arousal_level', 0), session.get('physical_energy', 80),
+                session.get('physical_hunger', 30), session.get('physical_thirst', 30),
+                session.get('role_arousal', 0), session.get('role_mode_goda', 0),
+                session.get('role_attraction', 50), session.get('scenes', '[]'),
+                session.get('milestones', '[]'), session.get('promises', '[]'),
+                session.get('plans', '[]'), session.get('user_preferences', '{}'),
+                session.get('current_scene_id'), session.get('relationship_status', 'pdkt'),
+                session.get('created_at', now), now
+            ))
+        
+        restored += 1
+    
+    await db.commit()
+    
+    logger.info(f"📥 Restored {restored} sessions from {backup_file} (skipped: {skipped})")
+
+
+async def get_user_sessions_stats() -> Dict[str, Any]:
+    """
+    Dapatkan statistik user sessions
+    
+    Returns:
+        Dict statistik
+    """
+    db = await get_db()
+    
+    # Total sessions
+    total = await db.fetch_one("SELECT COUNT(*) as count FROM user_sessions")
+    
+    # Sessions by role
+    by_role = await db.fetch_all("""
+        SELECT role, COUNT(*) as count 
+        FROM user_sessions 
+        WHERE role IS NOT NULL 
+        GROUP BY role 
+        ORDER BY count DESC
     """)
     
-    # Cek apakah sudah migrasi
-    cursor.execute("SELECT version FROM migration_log WHERE version = 'v2'")
-    if not cursor.fetchone():
-        cursor.execute(
-            "INSERT INTO migration_log (version, migrated_at, description) VALUES (?, ?, ?)",
-            ('v2', time.time(), 'MYLOVE PREMIUM AI - Full V2 migration')
-        )
-        print("  ✅ migration_log updated")
+    # Average intimacy level
+    avg_intimacy = await db.fetch_one("SELECT AVG(intimacy_level) as avg FROM user_sessions")
     
-    # =========================================================================
-    # COMMIT & FINISH
-    # =========================================================================
-    conn.commit()
+    # Active sessions (updated in last 24 hours)
+    day_ago = time.time() - 86400
+    active = await db.fetch_one(
+        "SELECT COUNT(*) as count FROM user_sessions WHERE updated_at > ?",
+        (day_ago,)
+    )
     
-    # Cek hasil
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    tables = cursor.fetchall()
+    # Most common locations
+    top_locations = await db.fetch_all("""
+        SELECT current_location, COUNT(*) as count 
+        FROM user_sessions 
+        GROUP BY current_location 
+        ORDER BY count DESC 
+        LIMIT 5
+    """)
     
-    print("=" * 60)
-    print(f"✅ MIGRATION COMPLETED! {len(tables)} tables available:")
-    for table in tables:
-        print(f"   • {table[0]}")
-    print("=" * 60)
-    
-    # =========================================================================
-    # VERIFY TABLES
-    # =========================================================================
-    print("\n📊 VERIFYING TABLES...")
-    required_tables = [
-        'users', 'sessions', 'conversations', 'pdkt_sessions',
-        'pdkt_inner_thoughts', 'mantan', 'fwb_relations', 'hts_relations',
-        'memories', 'relationships', 'threesome_sessions', 'threesome_participants',
-        'preferences', 'milestones', 'backups', 'migration_log', 'user_sessions'
-    ]
-    
-    missing = []
-    for table in required_tables:
-        cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
-        if not cursor.fetchone():
-            missing.append(table)
-    
-    if missing:
-        print(f"⚠️ Missing tables: {missing}")
-    else:
-        print("✅ All required tables present!")
-    
-    # =========================================================================
-    # DATABASE SIZE
-    # =========================================================================
-    if db_path.exists():
-        size_bytes = db_path.stat().st_size
-        size_mb = size_bytes / (1024 * 1024)
-        print(f"📦 Database size: {size_mb:.2f} MB")
-    
-    conn.close()
-    
-    print("\n🎉 Migration successful! Your MYLOVE PREMIUM AI database is ready.")
-    return True
+    return {
+        'total_sessions': total['count'] if total else 0,
+        'by_role': [{'role': r['role'], 'count': r['count']} for r in by_role],
+        'avg_intimacy_level': round(avg_intimacy['avg'], 1) if avg_intimacy and avg_intimacy['avg'] else 0,
+        'active_24h': active['count'] if active else 0,
+        'top_locations': [{'location': l['current_location'], 'count': l['count']} for l in top_locations]
+    }
 
 
-if __name__ == "__main__":
-    migrate()
+__all__ = [
+    'run_migrations',
+    'create_user_sessions_table',
+    'fix_missing_columns',
+    'reset_user_session',
+    'cleanup_old_sessions',
+    'backup_user_sessions',
+    'restore_user_sessions',
+    'get_user_sessions_stats',
+]
