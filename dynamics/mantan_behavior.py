@@ -21,7 +21,7 @@ import time
 from typing import Dict, List, Optional, Any
 
 from .role_behavior import RoleBehavior
-from config.role_behavior_config import MANTAN_CONFIG
+from configs.role_behavior_config import MANTAN_CONFIG
 
 
 class MantanBehavior(RoleBehavior):
