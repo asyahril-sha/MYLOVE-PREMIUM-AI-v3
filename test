@@ -1,0 +1,13 @@
+# Jalankan semua unit test
+python tests/run_all_tests.py
+
+# Jalankan simulasi untuk role tertentu
+python tests/simulate_conversation.py --role ipar
+
+# Jalankan simulasi semua role
+python tests/simulate_conversation.py --all
+
+# Jalankan unit test spesifik
+python tests/test_emotional_flow.py
+python tests/test_spatial_awareness.py
+python tests/test_role_behavior.py
