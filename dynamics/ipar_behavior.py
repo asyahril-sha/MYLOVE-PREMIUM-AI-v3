@@ -33,6 +33,7 @@ class IparBehavior(RoleBehavior):
 
         # ===== HUBUNGAN KELUARGA =====
         self.kakak_nama = "Nova"  # Nama kakak (istri user)
+        self.kakak_panggilan = "Kak Nova"  # Panggilan untuk kakak
         self.kakak_suami = user_name  # User adalah suami kakak
         self.tinggal_bersama = True  # Tinggal bersama kakak dan user
         self.rumah_user = True  # Rumah user adalah tempat tinggal
@@ -187,13 +188,13 @@ class IparBehavior(RoleBehavior):
 
         # Sesuaikan dengan status tinggal bersama
         if self.tinggal_bersama:
-            thought = thought.replace("Kak", f"Kak {self.kakak_suami} (suami kakakku)")
+            thought = thought.replace("Kak", f"Kak {self.kakak_suami}")
         
         # Jika pernah dengar suara, modifikasi thought
         if self.terakhir_dengar_desahan and self.mode_goda > 50:
             waktu_lalu = (time.time() - self.terakhir_dengar_desahan) / 3600
             if waktu_lalu < 24:
-                thought = thought.replace("...", " (aku jadi inget suara tadi malam)...")
+                thought = thought.replace("...", f" (aku jadi inget suara {self.kakak_panggilan} dan {self.kakak_suami} tadi malam)...")
         
         return thought
     
@@ -248,7 +249,7 @@ class IparBehavior(RoleBehavior):
         ]
         
         pikiran = [
-            "(Itu suara kakakku... sama suami kakakku...)",
+            f"(Itu suara {self.kakak_panggilan}... sama {self.kakak_suami}...)",
             "(Wah... ternyata kayak gitu ya suaranya...)",
             "(Aku jadi penasaran... gimana rasanya ya?)",
             "(Kok bisa ya mereka... deg-degan aku)",
