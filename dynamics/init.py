@@ -37,7 +37,37 @@ from .mantan_behavior import MantanBehavior
 from .emotional_flow import EmotionalFlow, EmotionalState
 from .spatial_awareness import SpatialAwareness
 from .gesture_db import get_gesture, get_gesture_by_combination
-from .role_behavior_config
+
+# =============================================================================
+# CONFIG IMPORTS (DARI configs FOLDER)
+# =============================================================================
+from configs.role_behavior_config import (
+    IPAR_CONFIG,
+    TEMAN_KANTOR_CONFIG,
+    JANDA_CONFIG,
+    PELAKOR_CONFIG,
+    ISTRI_ORANG_CONFIG,
+    PDKT_CONFIG,
+    SEPUPU_CONFIG,
+    TEMAN_SMA_CONFIG,
+    MANTAN_CONFIG,
+    get_role_config,
+    get_all_role_names
+)
+
+from configs.gesture_config import (
+    POSITION_GESTURES,
+    ACTIVITY_GESTURES,
+    EMOTION_GESTURES,
+    AROUSAL_GESTURES,
+    SPECIAL_SITUATION_GESTURES,
+    get_position_gesture,
+    get_activity_gesture,
+    get_emotion_gesture,
+    get_arousal_gesture,
+    get_special_gesture,
+    get_random_gesture
+)
 
 __all__ = [
     # V2 Existing
@@ -75,6 +105,30 @@ __all__ = [
     'SpatialAwareness',
     'get_gesture',
     'get_gesture_by_combination',
+    
+    # Config exports
+    'IPAR_CONFIG',
+    'TEMAN_KANTOR_CONFIG',
+    'JANDA_CONFIG',
+    'PELAKOR_CONFIG',
+    'ISTRI_ORANG_CONFIG',
+    'PDKT_CONFIG',
+    'SEPUPU_CONFIG',
+    'TEMAN_SMA_CONFIG',
+    'MANTAN_CONFIG',
+    'get_role_config',
+    'get_all_role_names',
+    'POSITION_GESTURES',
+    'ACTIVITY_GESTURES',
+    'EMOTION_GESTURES',
+    'AROUSAL_GESTURES',
+    'SPECIAL_SITUATION_GESTURES',
+    'get_position_gesture',
+    'get_activity_gesture',
+    'get_emotion_gesture',
+    'get_arousal_gesture',
+    'get_special_gesture',
+    'get_random_gesture',
 ]
 
 __version__ = "3.0.0"
