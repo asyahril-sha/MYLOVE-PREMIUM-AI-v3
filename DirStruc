@@ -1,0 +1,132 @@
+MYLOVE-PREMIUM-AI/
+│
+├── 📄 main.py                                      # Entry point (aiohttp server)
+├── 📄 config.py                                    # Konfigurasi Pydantic
+├── 📄 README.md                                    # Dokumentasi lengkap
+├── 📄 requirements.txt                             # Dependencies
+├── 📄 Dockerfile                                   # Container config
+├── 📄 railway.json                                 # Railway deployment config
+├── 📄 docker-compose.yml                           # Local development
+├── 📄 .env.example                                 # Template environment variables
+│
+├── 📁 core/                                        # AI & INTELIJENSI (6 files)
+│   ├── __init__.py
+│   ├── ai_engine.py
+│   ├── intent_analyzer.py
+│   ├── name_detector.py
+│   ├── prompt_builder.py
+│   └── context_analyzer.py
+│
+├── 📁 memory/                                      # SISTEM MEMORI (8 files)
+│   ├── __init__.py
+│   ├── memory_bridge.py
+│   ├── working_memory.py
+│   ├── episodic.py
+│   ├── semantic.py
+│   ├── compact_memory.py
+│   ├── state_tracker.py
+│   ├── forgetting.py
+│   └── vector_db.py
+│
+├── 📁 relationship/                                # HUBUNGAN & LEVELING (7 files)
+│   ├── __init__.py
+│   ├── intimacy.py
+│   ├── activity_boost.py
+│   ├── ranking.py
+│   ├── hts.py
+│   ├── fwb.py
+│   └── mantan.py
+│
+├── 📁 pdkt/                                        # PDKT NATURAL (6 files)
+│   ├── __init__.py
+│   ├── engine.py
+│   ├── chemistry.py
+│   ├── direction.py
+│   ├── mood.py
+│   ├── random_pdkt.py
+│   └── list_formatter.py
+│
+├── 📁 sexual/                                      # SISTEM INTIM (9 files)
+│   ├── __init__.py
+│   ├── positions.py
+│   ├── areas.py
+│   ├── climax.py
+│   ├── preferences.py
+│   ├── aftercare.py
+│   ├── scene_generator.py
+│   ├── level_11_12.py
+│   └── compatibility.py
+│
+├── 📁 dynamics/                                    # ENVIRONMENT DINAMIS (11 files)
+│   ├── __init__.py
+│   ├── location.py
+│   ├── position.py
+│   ├── clothing.py
+│   ├── expression.py
+│   ├── sound.py
+│   ├── nickname.py
+│   ├── name_generator.py
+│   ├── location_validator.py
+│   ├── physical.py
+│   └── mood_swing.py
+│
+├── 📁 public/                                      # PUBLIC AREAS (6 files)
+│   ├── __init__.py
+│   ├── locations.py
+│   ├── risk.py
+│   ├── thrill.py
+│   ├── auto_select.py
+│   └── events.py
+│
+├── 📁 threesome/                                   # THREESOME MODE (3 files)
+│   ├── __init__.py
+│   ├── manager.py
+│   └── dynamics.py
+│
+├── 📁 session/                                     # SESSION MANAGEMENT (5 files)
+│   ├── __init__.py
+│   ├── storage.py
+│   ├── unique_id.py
+│   ├── continuation.py
+│   └── cleanup.py
+│
+├── 📁 database/                                    # DATABASE LAYER (5 files)
+│   ├── __init__.py
+│   ├── connection.py
+│   ├── models.py
+│   ├── repository.py
+│   └── migrate.py
+│
+├── 📁 bot/                                         # TELEGRAM BOT (6 files)
+│   ├── __init__.py
+│   ├── application.py
+│   ├── handlers.py
+│   ├── commands.py
+│   ├── callbacks.py
+│   └── webhook.py
+│
+├── 📁 monitoring/                                  # MONITORING (3 files)
+│   ├── __init__.py
+│   ├── metrics.py
+│   └── dashboard.py
+│
+├── 📁 backup/                                      # BACKUP SYSTEM (4 files)
+│   ├── __init__.py
+│   ├── automated.py
+│   ├── recovery.py
+│   └── verify.py
+│
+├── 📁 names/                                       # DATABASE NAMA (2 files)
+│   ├── __init__.py
+│   └── artists.py
+│
+├── 📁 utils/                                       # UTILITIES (5 files)
+│   ├── __init__.py
+│   ├── logger.py
+│   ├── exceptions.py
+│   ├── helpers.py
+│   └── performance.py
+│
+└── 📁 scripts/                                     # UTILITY SCRIPTS (2 files)
+    ├── test_bot.py
+    └── setup_webhook.py
