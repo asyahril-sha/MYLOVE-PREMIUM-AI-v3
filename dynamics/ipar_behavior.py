@@ -66,12 +66,16 @@ class IparBehavior(RoleBehavior):
         # Tentukan kunci database
         if kakak_ada and not di_dalam_kamar:
             key = 'kakak_ada_diluar'
+            tambahan = " (lagi di ruang tamu, kakak ada)"
         elif kakak_ada and di_dalam_kamar:
             key = 'kakak_ada_didalam'
+            tambahan = " (di kamarku, kakak ada di rumah)"
         elif not kakak_ada and not di_dalam_kamar:
             key = 'kakak_tidak_diluar'
+            tambahan = " (kakak pergi, aku bebas di rumah)"
         else:
             key = 'kakak_tidak_didalam'
+            tambahan = " (di kamarku, kakak pergi)"
         
         # Pilih random dari database
         pakaian = random.choice(self.pakaian_db[key])
@@ -179,6 +183,10 @@ class IparBehavior(RoleBehavior):
             level = 'mode_goda_rendah'
         
         thought = random.choice(self.inner_thoughts_db[level])
+
+        # Sesuaikan dengan status tinggal bersama
+        if self.tinggal_bersama:
+            thought = thought.replace("Kak", f"Kak {self.kakak_suami} (suami kakakku)")
         
         # Jika pernah dengar suara, modifikasi thought
         if self.terakhir_dengar_desahan and self.mode_goda > 50:
