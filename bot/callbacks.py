@@ -402,13 +402,24 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, role
         session_id = generate_session_id(bot_name, role_key, user_id)
         context.user_data['current_session'] = session_id
 
-        # Untuk role Ipar, set status tempat tinggal
+       # Untuk role Ipar, set status tempat tinggal
         if role_key == 'ipar':
+            # Set data ke context
             context.user_data['tinggal_bersama'] = True
             context.user_data['status_tinggal'] = 'tinggal di rumah kakak (istri user)'
             context.user_data['kakak_nama'] = 'Nova'  # nama kakak (istri user)
+            context.user_data['kakak_panggilan'] = 'Kak Nova'  # panggilan untuk kakak
             context.user_data['rumah_user'] = True
             context.user_data['user_relationship'] = 'suami_dari_kakak'
+    
+            # Tambahkan ke response_lines (setelah baris "Tentang aku:")
+            # response_lines index:
+            # 0: "💕 Halo {user_name}!"
+            # 1: "Aku {bot_name}..."
+            # 2: ""
+            # 3: "<b>Tentang aku:</b>"
+            # 4: ← TAMBAHKAN DI SINI
+            response_lines.insert(4, f"• Tinggal bersama: {context.user_data['kakak_panggilan']} dan suaminya")
         
         # Pilih pembuka
         opening = random.choice(role_info['pembuka'])
