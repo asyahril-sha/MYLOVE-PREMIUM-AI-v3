@@ -39,100 +39,103 @@ class SessionContinuation:
     async def get_continuable_sessions(self, user_id: int, limit: int = 10) -> List[Dict]:
         """
         Dapatkan sessions yang bisa dilanjutkan
-        
-        Args:
-            user_id: ID user
-            limit: Max number of sessions
-            
-        Returns:
-            List of sessions (active + recent closed)
         """
         # Get all sessions
         sessions = await self.storage.get_user_sessions(user_id, limit * 2)
-        
-        # Filter and sort
+    
         continuable = []
         for session in sessions:
-            # Parse ID untuk dapat info
-            parsed = id_generator.parse(session['id'])
-            if not parsed:
-                continue
-                
-            # Format untuk display
-            display_name = id_generator.format_for_display(session['id'])
-            
-            # Hitung umur
-            age_days = id_generator.get_session_age_days(session['id'])
-            
+            # Ambil langsung dari data session, tanpa parsing
+            session_id = session.get('id')
+            bot_name = session.get('bot_name', session.get('role', 'Unknown'))
+            role = session.get('role', 'Unknown')
+            status = session.get('status', 'closed')
+            total_messages = session.get('total_messages', 0)
+            intimacy_level = session.get('intimacy_level', 1)
+            last_message_time = session.get('last_message_time', 0)
+            summary = session.get('summary', '')
+        
+            # Hitung umur dari timestamp
+            age_days = 0
+            if last_message_time:
+                age_days = int((time.time() - last_message_time) / 86400)
+        
+            # Format display name sederhana
+            display_name = f"{bot_name} ({role.title()})"
+        
             continuable.append({
-                "id": session['id'],
-                "bot_name": session.get('bot_name', session.get('role', 'Unknown')),
-                "role": session['role'],
-                "status": session['status'],
+                "id": session_id,
+                "bot_name": bot_name,
+                "role": role,
+                "status": status,
                 "display_name": display_name,
                 "age_days": age_days,
-                "total_messages": session.get('total_messages', 0),
-                "intimacy_level": session.get('intimacy_level', 1),
-                "last_message_time": session.get('last_message_time', 0),
-                "summary": session.get('summary', ''),
-                "is_active": session['status'] == 'active'
+                "total_messages": total_messages,
+                "intimacy_level": intimacy_level,
+                "last_message_time": last_message_time,
+                "summary": summary,
+                "is_active": status == 'active'
             })
-            
+    
         # Sort: active first, then by last message
         continuable.sort(key=lambda x: (-x['is_active'], -x['last_message_time']))
-        
+    
         return continuable[:limit]
     
     # =========================================================================
     # FORMAT SESSION LIST
     # =========================================================================
-    
+
     def format_session_list(self, sessions: List[Dict]) -> str:
         """
         Format session list untuk ditampilkan
-        
+    
         Args:
             sessions: List of sessions from get_continuable_sessions
-            
+        
         Returns:
             Formatted string
         """
         if not sessions:
-            return "Belum ada session. Mulai dengan /start dulu ya!"
-            
+            return "📋 **DAFTAR SESSION**\n\nBelum ada session tersimpan.\nMulai dengan /start untuk membuat session baru."
+    
         lines = ["📋 **DAFTAR SESSION**"]
-        lines.append("_(pilih dengan /continue [nomor atau ID])_")
+        lines.append("_(pilih dengan /continue [nomor])_")
         lines.append("")
-        
+    
         for i, session in enumerate(sessions, 1):
             # Status indicator
-            if session['is_active']:
+            if session.get('is_active'):
                 status = "🟢 ACTIVE"
             else:
                 status = "⚪ CLOSED"
-                
+        
             # Age indicator
-            if session['age_days'] == 0:
+            age_days = session.get('age_days', 0)
+            if age_days == 0:
                 age = "Hari ini"
-            elif session['age_days'] == 1:
+            elif age_days == 1:
                 age = "Kemarin"
             else:
-                age = f"{session['age_days']} hari lalu"
-                
-            # Format
+                age = f"{age_days} hari lalu"
+        
+            # Progress bar untuk level
+            level = session.get('intimacy_level', 1)
+            level_bar = "❤️" * level + "🖤" * (12 - level)
+        
             lines.append(
                 f"{i}. **{session['bot_name']}** ({session['role'].title()}) {status}\n"
-                f"   ID: `{session['id']}`\n"
-                f"   {age} | Level {session['intimacy_level']}/12 | "
-                f"{session['total_messages']} pesan\n"
-                f"   _{session['summary'][:50]}..._"
+                f"   📈 Level: {level}/12 {level_bar}\n"
+                f"   💬 {session.get('total_messages', 0)} pesan\n"
+                f"   🕐 {age}\n"
+                f"   📝 {session.get('summary', '')[:50]}..."
             )
-            
-        lines.append("")
+            lines.append("")
+    
         lines.append("💡 **Cara pakai:**")
         lines.append("• `/continue 1` - Lanjut session nomor 1")
-        lines.append("• `/continue MYLOVE-SARI-IPAR-123-20240315-001` - Pakai ID langsung")
-        
+        lines.append("• `/continue MYLOVE-PUTRI-IPAR-123-20260322-001` - Pakai ID langsung")
+    
         return "\n".join(lines)
     
     # =========================================================================
@@ -173,63 +176,64 @@ class SessionContinuation:
     # =========================================================================
     # CONTINUE SESSION
     # =========================================================================
-    
+
     async def continue_session(self, user_id: int, session_id: str) -> Dict:
         """
-        Continue session
-        
+        Continue session yang sudah di-close
+    
         Args:
             user_id: ID user
             session_id: Session ID
-            
+        
         Returns:
             Session data with context
         """
         # Get session
         session = await self.storage.get_full_session(session_id)
-        
+    
         if not session:
             raise ValueError(f"Session {session_id} tidak ditemukan")
-            
+        
         if session['user_id'] != user_id:
             raise ValueError("Session ini bukan milik kamu")
-            
+    
         # Continue (reactivate if closed)
         continued = await self.storage.continue_session(session_id)
-        
+    
         # Generate context summary
         context = await self._generate_context_summary(continued)
-        
+    
         return {
             "session": continued,
             "context": context,
             "last_messages": continued.get('conversation', [])[-5:]  # Last 5 messages
         }
-        
+
+
     async def _generate_context_summary(self, session: Dict) -> str:
         """Generate context summary untuk dilanjutkan"""
-        
+    
         parts = []
-        
+    
         # Basic info
         bot_name = session.get('bot_name', session['role'].title())
         parts.append(f"Melanjutkan session dengan **{bot_name}** ({session['role'].title()})")
-        
+    
         # Intimacy level
         level = session.get('intimacy_level', 1)
         parts.append(f"Intimacy Level: {level}/12")
-        
+    
         # Location
         if session.get('location'):
             parts.append(f"Terakhir di: {session['location']}")
-            
+        
         # Milestones
         milestones = session.get('milestones', [])
         if milestones:
             recent = milestones[-3:]
             milestone_names = [m['type'] if isinstance(m, dict) else m for m in recent]
             parts.append(f"Milestone: {', '.join(milestone_names)}")
-            
+        
         # Last message
         conv = session.get('conversation', [])
         if conv:
@@ -238,64 +242,81 @@ class SessionContinuation:
             parts.append(f"\nPesan terakhir ({last_time}):")
             parts.append(f"Kamu: {last['user'][:50]}...")
             parts.append(f"{bot_name}: {last['bot'][:50]}...")
-            
+        
         return "\n".join(parts)
     
     # =========================================================================
     # COMMAND HANDLER
     # =========================================================================
-    
+
     async def handle_continue_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Handler untuk /continue command
-        
+    
         Usage:
             /continue - List sessions
             /continue 1 - Continue session nomor 1
-            /continue MYLOVE-SARI-IPAR-123-20240315-001 - Continue by ID
+            /continue MYLOVE-PUTRI-IPAR-123-20260322-001 - Continue by ID
         """
         user_id = update.effective_user.id
         args = context.args
-        
+    
         # No args -> show list
         if not args:
             sessions = await self.get_continuable_sessions(user_id)
-            await update.message.reply_text(
-                self.format_session_list(sessions),
-                parse_mode='Markdown'
-            )
+        
+            if not sessions:
+                await update.message.reply_text(
+                    "📋 **DAFTAR SESSION**\n\n"
+                    "Belum ada session tersimpan.\n"
+                    "Mulai dengan /start untuk membuat session baru.",
+                    parse_mode='HTML'
+                )
+                return
+        
+            formatted = self.format_session_list(sessions)
+            await update.message.reply_text(formatted, parse_mode='HTML')
             return
-            
+    
         # Has args -> try to continue
         input_str = ' '.join(args)
-        
+    
         try:
             # Find session
             session_data = await self.find_session_by_input(user_id, input_str)
-            
+        
             if not session_data:
                 await update.message.reply_text(
                     "❌ Session tidak ditemukan.\n"
                     "Ketik /continue untuk lihat daftar session."
                 )
                 return
-                
+        
             # Continue session
             result = await self.continue_session(user_id, session_data['id'])
-            
+        
             # Send response
             await update.message.reply_text(
                 f"🔄 **Melanjutkan Session**\n\n"
                 f"{result['context']}\n\n"
                 f"_Ketik pesan untuk melanjutkan cerita..._",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
-            
+        
             # Store session ID in context for message handler
             context.user_data['current_session'] = session_data['id']
             context.user_data['current_role'] = session_data['role']
             context.user_data['bot_name'] = session_data.get('bot_name', session_data['role'].title())
-            
+            context.user_data['intimacy_level'] = session_data.get('intimacy_level', 1)
+            context.user_data['total_chats'] = session_data.get('total_messages', 0)
+            context.user_data['current_location'] = session_data.get('location', 'ruang tamu')
+        
+            # Restore relationship status
+            rel_status = session_data.get('relationship_status', 'pdkt')
+            context.user_data['relationship_status'] = rel_status
+        
+        except ValueError as e:
+            await update.message.reply_text(f"❌ {str(e)}")
         except Exception as e:
             logger.error(f"Error in continue command: {e}")
             await update.message.reply_text(
