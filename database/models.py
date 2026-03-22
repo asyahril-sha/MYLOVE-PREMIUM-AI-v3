@@ -984,6 +984,7 @@ class UserSession(BaseModel):
     # ===== STATE YANG HARUS DIINGAT UNTUK KONSISTENSI =====
     current_activity: str = ""                     # Aktivitas saat ini (nonton, masak, dll)
     kakak_status: str = "ada"                      # "ada", "tidak_ada", "tidur"
+    kakak_lokasi: str = "kamar"                    # 🔥 BARU
     suami_status: str = "ada"                      # "ada", "tidak_ada", "tidur"
     kantor_sepi: bool = False                      # Apakah kantor sedang sepi
     sedang_berdua: bool = False                    # Apakah sedang berduaan dengan user
