@@ -5,7 +5,7 @@
 MYLOVE PREMIUM AI - DATABASE REPOSITORY
 =============================================================================
 Repository pattern untuk semua operasi database
-Menggabungkan semua method V1 dan V2 dengan state persistence lengkap
+Menggabungkan semua method V1 dan V2 dengan state persistence
 =============================================================================
 """
 
@@ -957,6 +957,7 @@ class Repository:
         
         # Situasi
         kakak_status = session_data.get('kakak_status', 'ada')
+        kakak_lokasi = session_data.get('kakak_lokasi', 'kamar')      # 🔥 BARU
         suami_status = session_data.get('suami_status', 'ada')
         kantor_sepi = 1 if session_data.get('kantor_sepi', False) else 0
         sedang_berdua = 1 if session_data.get('sedang_berdua', False) else 0
@@ -997,24 +998,25 @@ class Repository:
                     session_id = ?, role = ?, bot_name = ?, rel_type = ?,
                     instance_id = ?, intimacy_level = ?, total_chats = ?,
                     current_location = ?, current_clothing = ?, current_position = ?,
-                    current_activity = ?, kakak_status = ?, suami_status = ?,
-                    kantor_sepi = ?, sedang_berdua = ?, current_emotion = ?,
-                    arousal_level = ?, emotional_history = ?, physical_energy = ?,
-                    physical_hunger = ?, physical_thirst = ?, role_arousal = ?,
-                    role_mode_goda = ?, role_attraction = ?, scenes = ?,
-                    milestones = ?, promises = ?, plans = ?, user_preferences = ?,
-                    current_scene_id = ?, relationship_status = ?, updated_at = ?
+                    current_activity = ?, kakak_status = ?, kakak_lokasi = ?,
+                    suami_status = ?, kantor_sepi = ?, sedang_berdua = ?,
+                    current_emotion = ?, arousal_level = ?, emotional_history = ?,
+                    physical_energy = ?, physical_hunger = ?, physical_thirst = ?,
+                    role_arousal = ?, role_mode_goda = ?, role_attraction = ?,
+                    scenes = ?, milestones = ?, promises = ?, plans = ?,
+                    user_preferences = ?, current_scene_id = ?, relationship_status = ?,
+                    updated_at = ?
                 WHERE user_id = ?
                 """,
                 (
                     session_id, role, bot_name, rel_type, instance_id,
                     intimacy_level, total_chats, current_location, current_clothing,
-                    current_position, current_activity, kakak_status, suami_status,
-                    kantor_sepi, sedang_berdua, current_emotion, arousal_level,
-                    emotional_history, physical_energy, physical_hunger, physical_thirst,
-                    role_arousal, role_mode_goda, role_attraction, scenes, milestones,
-                    promises, plans, user_preferences, current_scene_id,
-                    relationship_status, now, user_id
+                    current_position, current_activity, kakak_status, kakak_lokasi,
+                    suami_status, kantor_sepi, sedang_berdua, current_emotion,
+                    arousal_level, emotional_history, physical_energy, physical_hunger,
+                    physical_thirst, role_arousal, role_mode_goda, role_attraction,
+                    scenes, milestones, promises, plans, user_preferences,
+                    current_scene_id, relationship_status, now, user_id
                 )
             )
             logger.debug(f"📝 Updated user session state for user {user_id}")
@@ -1025,23 +1027,23 @@ class Repository:
                 INSERT INTO user_sessions 
                 (user_id, session_id, role, bot_name, rel_type, instance_id,
                  intimacy_level, total_chats, current_location, current_clothing,
-                 current_position, current_activity, kakak_status, suami_status,
-                 kantor_sepi, sedang_berdua, current_emotion, arousal_level,
-                 emotional_history, physical_energy, physical_hunger, physical_thirst,
-                 role_arousal, role_mode_goda, role_attraction, scenes, milestones,
-                 promises, plans, user_preferences, current_scene_id,
-                 relationship_status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 current_position, current_activity, kakak_status, kakak_lokasi,
+                 suami_status, kantor_sepi, sedang_berdua, current_emotion,
+                 arousal_level, emotional_history, physical_energy, physical_hunger,
+                 physical_thirst, role_arousal, role_mode_goda, role_attraction,
+                 scenes, milestones, promises, plans, user_preferences,
+                 current_scene_id, relationship_status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user_id, session_id, role, bot_name, rel_type, instance_id,
                     intimacy_level, total_chats, current_location, current_clothing,
-                    current_position, current_activity, kakak_status, suami_status,
-                    kantor_sepi, sedang_berdua, current_emotion, arousal_level,
-                    emotional_history, physical_energy, physical_hunger, physical_thirst,
-                    role_arousal, role_mode_goda, role_attraction, scenes, milestones,
-                    promises, plans, user_preferences, current_scene_id,
-                    relationship_status, now, now
+                    current_position, current_activity, kakak_status, kakak_lokasi,
+                    suami_status, kantor_sepi, sedang_berdua, current_emotion,
+                    arousal_level, emotional_history, physical_energy, physical_hunger,
+                    physical_thirst, role_arousal, role_mode_goda, role_attraction,
+                    scenes, milestones, promises, plans, user_preferences,
+                    current_scene_id, relationship_status, now, now
                 )
             )
             logger.info(f"✅ Created user session state for user {user_id}")
@@ -1084,6 +1086,7 @@ class Repository:
                 
                 # Situasi
                 'kakak_status': result['kakak_status'],
+                'kakak_lokasi': result.get('kakak_lokasi', 'kamar'),   # 🔥 BARU
                 'suami_status': result['suami_status'],
                 'kantor_sepi': bool(result['kantor_sepi']),
                 'sedang_berdua': bool(result['sedang_berdua']),
@@ -1282,7 +1285,7 @@ class Repository:
             SELECT 
                 session_id, role, bot_name, intimacy_level, total_chats,
                 current_location, current_clothing, current_emotion, arousal_level,
-                kakak_status, suami_status, sedang_berdua, updated_at
+                kakak_status, kakak_lokasi, suami_status, sedang_berdua, updated_at
             FROM user_sessions 
             WHERE user_id = ?
             """,
@@ -1334,6 +1337,7 @@ class Repository:
             'current_emotion': result['current_emotion'],
             'emotion_emoji': emotion_emoji,
             'arousal_level': result['arousal_level'],
+            'kakak_lokasi': result.get('kakak_lokasi', 'kamar'),   # 🔥 BARU
             'situasi_text': situasi_text,
             'last_active': time_ago,
             'updated_at': updated_at
