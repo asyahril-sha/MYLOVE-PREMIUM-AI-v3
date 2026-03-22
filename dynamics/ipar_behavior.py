@@ -17,11 +17,10 @@ Karakteristik:
 
 import random
 import time
-import IPAR_CONFIG
 from typing import Dict, List, Optional, Any
 
 from .role_behavior import RoleBehavior
-from config.role_behavior_config import IPAR_CONFIG
+from configs.role_behavior_config import IPAR_CONFIG
 
 
 class IparBehavior(RoleBehavior):
