@@ -627,6 +627,127 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
             parse_mode='HTML'
         )
 
+# =============================================================================
+# V3 CALLBACKS (Tambahkan setelah admin_callback_handler)
+# =============================================================================
+
+async def stop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback untuk konfirmasi stop PDKT"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    user_id = update.effective_user.id
+    
+    if data.startswith("stop_yes_"):
+        pdkt_id = data.replace("stop_yes_", "")
+        reason = context.user_data.get('pending_stop', {}).get('reason', 'user_request')
+        
+        from bot.handlers import get_pdkt_engine, get_mantan_manager
+        
+        engine = await get_pdkt_engine()
+        mantan_manager = await get_mantan_manager()
+        
+        pdkt_data = await engine.get_pdkt(pdkt_id)
+        
+        if pdkt_data:
+            result = await engine.stop_pdkt(pdkt_id, user_id, reason)
+            
+            if result['success']:
+                mantan_manager.add_mantan(user_id, pdkt_data, reason)
+                
+                await query.edit_message_text(
+                    f"💔 **PDKT dengan {result['bot_name']} telah dihentikan.**\n\n"
+                    f"{result['bot_name']} sekarang menjadi mantan.\n"
+                    f"Gunakan /mantanlist untuk melihat daftar mantan."
+                )
+            else:
+                await query.edit_message_text(f"❌ Gagal menghentikan PDKT: {result.get('reason', 'Unknown')}")
+        else:
+            await query.edit_message_text("❌ PDKT tidak ditemukan.")
+    
+    elif data == "stop_no":
+        await query.edit_message_text("✅ PDKT dibatalkan.")
+    
+    # Hapus pending data
+    context.user_data.pop('pending_stop', None)
+
+
+async def fwb_end_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback untuk konfirmasi end FWB"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    user_id = update.effective_user.id
+    
+    if data.startswith("fwb_end_yes_"):
+        fwb_id = data.replace("fwb_end_yes_", "")
+        
+        from bot.handlers import get_fwb_manager
+        
+        fwb_manager = await get_fwb_manager()
+        result = await fwb_manager.end_fwb(user_id, fwb_id)
+        
+        if result['success']:
+            await query.edit_message_text(
+                f"💔 **FWB dengan {result['bot_name']} telah berakhir.**\n\n{result['message']}"
+            )
+        else:
+            await query.edit_message_text(f"❌ {result['reason']}")
+    
+    elif data == "fwb_end_no":
+        await query.edit_message_text("✅ FWB dibatalkan.")
+
+
+async def hts_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback untuk konfirmasi HTS"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    user_id = update.effective_user.id
+    
+    if data.startswith("hts_yes_"):
+        session_id = data.replace("hts_yes_", "")
+        
+        # Update status di context
+        context.user_data['relationship_status'] = 'hts'
+        
+        # Simpan ke database
+        from bot.handlers import get_repository
+        
+        repo = await get_repository()
+        await repo.save_user_session_state(
+            user_id=user_id,
+            session_data={
+                'session_id': session_id,
+                'role': context.user_data.get('current_role'),
+                'bot_name': context.user_data.get('bot_name'),
+                'rel_type': 'hts',
+                'instance_id': context.user_data.get('instance_id'),
+                'intimacy_level': context.user_data.get('intimacy_level', 1),
+                'total_chats': context.user_data.get('total_chats', 0),
+                'current_location': context.user_data.get('current_location', 'ruang tamu'),
+                'current_clothing': context.user_data.get('current_clothing', 'pakaian biasa'),
+                'current_position': context.user_data.get('current_position', 'santai'),
+                'relationship_status': 'hts',
+            }
+        )
+        
+        await query.edit_message_text(
+            f"💕 **Selamat! Kamu sekarang dalam status HTS!**\n\n"
+            f"Hubungan Tanpa Status dengan {context.user_data.get('bot_name')}.\n\n"
+            f"✨ **Fitur HTS:**\n"
+            f"• Bisa intim kapan saja\n"
+            f"• Tanpa komitmen\n"
+            f"• Gunakan /status untuk lihat detail\n\n"
+            f"💡 Nikmati kebebasan dalam hubungan ini!"
+        )
+    
+    elif data == "hts_no":
+        await query.edit_message_text("✅ Konfirmasi HTS dibatalkan.")
+
 
 __all__ = [
     'agree_18_callback',
@@ -649,4 +770,8 @@ __all__ = [
     'fwb_callback',
     'threesome_menu_callback',
     'admin_callback_handler',
+    # V3 Callbacks
+    'stop_callback',
+    'fwb_end_callback',
+    'hts_callback',
 ]
