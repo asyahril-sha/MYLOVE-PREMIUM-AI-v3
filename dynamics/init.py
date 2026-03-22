@@ -24,20 +24,20 @@ from .mood_swing import MoodSwing, MoodType
 # =============================================================================
 # V3 NEW (FILE BARU)
 # =============================================================================
-from configs.role_behavior import RoleBehavior
-from configs.ipar_behavior import IparBehavior
-from configs.teman_kantor_behavior import TemanKantorBehavior
-from configs.janda_behavior import JandaBehavior
-from configs.pelakor_behavior import PelakorBehavior
-from configs.istri_orang_behavior import IstriOrangBehavior
-from configs.pdkt_behavior import PDKTBehavior
-from configs.sepupu_behavior import SepupuBehavior
-from configs.teman_sma_behavior import TemanSmaBehavior
-from configs.mantan_behavior import MantanBehavior
+from .role_behavior import RoleBehavior
+from .ipar_behavior import IparBehavior
+from .teman_kantor_behavior import TemanKantorBehavior
+from .janda_behavior import JandaBehavior
+from .pelakor_behavior import PelakorBehavior
+from .istri_orang_behavior import IstriOrangBehavior
+from .pdkt_behavior import PDKTBehavior
+from .sepupu_behavior import SepupuBehavior
+from .teman_sma_behavior import TemanSmaBehavior
+from .mantan_behavior import MantanBehavior
 from .emotional_flow import EmotionalFlow, EmotionalState
 from .spatial_awareness import SpatialAwareness
 from .gesture_db import get_gesture, get_gesture_by_combination
-from configs.role_behavior_config
+from .role_behavior_config
 
 __all__ = [
     # V2 Existing
