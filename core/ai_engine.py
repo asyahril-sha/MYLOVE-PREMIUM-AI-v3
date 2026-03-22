@@ -143,6 +143,7 @@ class AIEngine:
         
         # ===== STATE UNTUK MEMORY PERSISTEN (BARU) =====
         self.kakak_status = "ada"           # ada, tidak_ada, tidur
+        self.kakak_lokasi = "kamar"         # 🔥 BARU: kamar, dapur, ruang tamu, luar
         self.suami_status = "ada"           # ada, tidak_ada, tidur
         self.sedang_berdua = False
         self.promises = []                  # Janji yang dibuat
