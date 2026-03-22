@@ -406,8 +406,9 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, role
         if role_key == 'ipar':
             context.user_data['tinggal_bersama'] = True
             context.user_data['status_tinggal'] = 'tinggal di rumah kakak (istri user)'
-            context.user_data['kakak_nama'] = 'Widya'  # nama kakak (istri user)
+            context.user_data['kakak_nama'] = 'Nova'  # nama kakak (istri user)
             context.user_data['rumah_user'] = True
+            context.user_data['user_relationship'] = 'suami_dari_kakak'
         
         # Pilih pembuka
         opening = random.choice(role_info['pembuka'])
