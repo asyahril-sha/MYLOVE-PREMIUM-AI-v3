@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-MYLOVE PREMIUM AI V3 - BOT HANDLERS (FINAL)
+MYLOVE PREMIUM AI V3 - BOT HANDLERS (FINAL - UPDATED)
 =============================================================================
 Semua handlers untuk command dan message dengan AI Engine V3
 Mencakup: Basic, PDKT, Mantan & FWB, Ranking, HTS, Session, Public Area
@@ -169,6 +169,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 session_id = saved_session['session_id']
                 logger.info(f"✅ Session restored from DB for user {user_id}")
+        # ===== END =====
         
         # ===== CEK PAUSE =====
         if context.user_data.get('paused', False):
@@ -185,7 +186,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ===== CEK APAKAH ADA SESSION AKTIF =====
         if not session_id:
             await update.message.reply_text(
-                "❌ Kamu belum memulai hubungan.\n"
+                "❌ Mas belum memulai hubungan.\n"
                 "Ketik /start untuk memilih role."
             )
             return
@@ -351,7 +352,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error in message_handler: {e}")
         await update.message.reply_text(
-            "❌ Maaf, terjadi kesalahan. Coba lagi nanti."
+            "❌ Maaf, terjadi kesalahan. Coba lagi nanti, Mas."
         )
 
 
@@ -380,7 +381,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "⚠️ <b>Kamu sudah memiliki session aktif!</b>\n\n"
+            "⚠️ <b>Mas sudah memiliki session aktif!</b>\n\n"
             f"Session ID: <code>{session_id}</code>\n"
             f"Role: {context.user_data.get('current_role', 'Unknown')}\n"
             f"Bot: {context.user_data.get('bot_name', 'Unknown')}\n\n"
@@ -398,7 +399,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Emotional Flow - Bot bisa merasakan\n"
         "• Spatial Awareness - Paham posisi\n"
         "• Role Behavior - Karakter unik per role\n\n"
-        "<b>Pilih role yang kamu inginkan:</b>"
+        "<b>Pilih role yang Mas inginkan:</b>"
     )
     
     keyboard = [
@@ -777,7 +778,7 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         "❌ Percakapan dibatalkan.\n"
-        "Ketik /start untuk memulai lagi."
+        "Ketik /start untuk memulai lagi, Mas."
     )
 
 
@@ -851,7 +852,7 @@ async def end_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🏁 <b>Session diakhiri</b>\n\n"
         f"Session dengan {bot_name} telah berakhir.\n"
-        f"Ketik /start untuk memulai role baru.",
+        f"Ketik /start untuk memulai role baru, Mas.",
         parse_mode='HTML'
     )
 
@@ -869,192 +870,13 @@ async def sessions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Lihat semua session"""
     await update.message.reply_text(
         "📋 <b>DAFTAR SESSION</b>\n\n"
-        "Gunakan /continue untuk melihat session yang bisa dilanjutkan.",
+        "Gunakan /continue untuk melihat session yang bisa dilanjutkan, Mas.",
         parse_mode='HTML'
     )
 
 
 # =============================================================================
-# 10. CONTINUE COMMAND (MULTI-ROLE)
-# =============================================================================
-
-async def continue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Lihat dan lanjutkan session tersimpan
-    
-    Usage:
-        /continue - Menampilkan daftar session
-        /continue 1 - Melanjutkan session nomor 1
-        /continue [nama_bot] - Melanjutkan session dengan bot itu
-    """
-    try:
-        user_id = update.effective_user.id
-        user_name = update.effective_user.first_name or "User"
-        args = context.args
-        
-        # Dapatkan continuation instance
-        continuation = await get_session_continuation()
-        
-        # Jika tanpa argumen, tampilkan daftar session
-        if not args:
-            # Ambil semua session user dari database
-            repo = await get_repository()
-            all_sessions = await repo.get_user_sessions(user_id, limit=20)
-            
-            if not all_sessions:
-                await update.message.reply_text(
-                    "📋 **DAFTAR SESSION**\n\n"
-                    "Belum ada session tersimpan, Mas.\n"
-                    "Mulai dengan /start untuk membuat session baru.",
-                    parse_mode='HTML'
-                )
-                return
-            
-            # Kelompokkan berdasarkan role
-            sessions_by_role = {}
-            for session in all_sessions:
-                role = session.get('role', 'unknown')
-                if role not in sessions_by_role:
-                    sessions_by_role[role] = []
-                sessions_by_role[role].append(session)
-            
-            # Format output
-            lines = ["📋 **DAFTAR SESSION TERSIMPAN**\n"]
-            
-            role_icons = {
-                'ipar': '👩',
-                'teman_kantor': '👩‍💼',
-                'janda': '👩',
-                'pelakor': '💃',
-                'istri_orang': '👰',
-                'pdkt': '💕',
-                'sepupu': '👧',
-                'teman_sma': '👩‍🎓',
-                'mantan': '💔'
-            }
-            
-            for role, sessions in sessions_by_role.items():
-                icon = role_icons.get(role, '🎭')
-                lines.append(f"{icon} **{role.title()}**")
-                for i, session in enumerate(sessions[:5], 1):
-                    status = "🟢 AKTIF" if session.get('status') == 'active' else "⚪ TERSIMPAN"
-                    level = session.get('intimacy_level', 1)
-                    location = session.get('current_location', '?')
-                    bot_name = session.get('bot_name', 'Bot')
-                    total_chats = session.get('total_messages', 0)
-                    last_time = session.get('last_message_time', 0)
-                    
-                    # Format waktu terakhir
-                    if last_time:
-                        diff = time.time() - last_time
-                        if diff < 3600:
-                            time_ago = f"{int(diff/60)} menit lalu"
-                        elif diff < 86400:
-                            time_ago = f"{int(diff/3600)} jam lalu"
-                        else:
-                            time_ago = f"{int(diff/86400)} hari lalu"
-                    else:
-                        time_ago = "belum ada aktivitas"
-                    
-                    lines.append(
-                        f"  {i}. **{bot_name}** {status}\n"
-                        f"     📈 Level {level}/12 | 💬 {total_chats} chat\n"
-                        f"     📍 {location} | 🕐 {time_ago}"
-                    )
-                lines.append("")
-            
-            lines.append("💡 **Cara pakai, Mas:**")
-            lines.append("• `/continue 1` - Lanjut session nomor 1")
-            lines.append("• `/continue [nama_bot]` - Lanjut session dengan bot itu")
-            
-            await update.message.reply_text("\n".join(lines), parse_mode='HTML')
-            return
-        
-        # Jika ada argumen, coba lanjutkan session
-        input_str = ' '.join(args).lower()
-        
-        # Cari session berdasarkan input
-        repo = await get_repository()
-        all_sessions = await repo.get_user_sessions(user_id, limit=20)
-        
-        target_session = None
-        
-        # Coba cari berdasarkan nomor
-        try:
-            index = int(input_str)
-            if 1 <= index <= len(all_sessions):
-                target_session = all_sessions[index - 1]
-        except ValueError:
-            pass
-        
-        # Jika tidak ditemukan, cari berdasarkan nama bot
-        if not target_session:
-            for session in all_sessions:
-                bot_name = session.get('bot_name', '').lower()
-                if input_str in bot_name:
-                    target_session = session
-                    break
-        
-        if not target_session:
-            await update.message.reply_text(
-                "❌ Session tidak ditemukan, Mas.\n"
-                "Ketik /continue untuk lihat daftar session.",
-                parse_mode='HTML'
-            )
-            return
-        
-        # Lanjutkan session
-        session_data = target_session
-        session_id = session_data.get('id')
-        
-        # Restore data ke context user
-        context.user_data['current_session'] = session_id
-        context.user_data['current_role'] = session_data.get('role')
-        context.user_data['bot_name'] = session_data.get('bot_name', session_data.get('role', 'Bot').title())
-        context.user_data['intimacy_level'] = session_data.get('intimacy_level', 1)
-        context.user_data['total_chats'] = session_data.get('total_messages', 0)
-        context.user_data['current_location'] = session_data.get('current_location', 'ruang tamu')
-        context.user_data['current_clothing'] = session_data.get('current_clothing', 'pakaian biasa')
-        context.user_data['current_position'] = session_data.get('current_position', 'santai')
-        context.user_data['relationship_status'] = session_data.get('relationship_status', 'pdkt')
-        context.user_data['rel_type'] = session_data.get('rel_type', 'non_pdkt')
-        context.user_data['instance_id'] = session_data.get('instance_id')
-        context.user_data['kakak_status'] = session_data.get('kakak_status', 'ada')
-        context.user_data['suami_status'] = session_data.get('suami_status', 'ada')
-        
-        # Update status session menjadi active di database
-        await repo.execute(
-            "UPDATE sessions SET status = 'active', last_message_time = ? WHERE id = ?",
-            (time.time(), session_id)
-        )
-        
-        bot_name = session_data.get('bot_name', 'Bot')
-        role = session_data.get('role', 'pdkt')
-        level = session_data.get('intimacy_level', 1)
-        location = session_data.get('current_location', 'ruang tamu')
-        
-        # Kirim pesan sukses
-        await update.message.reply_text(
-            f"🔄 **Melanjutkan Session**\n\n"
-            f"🤖 **Bot:** {bot_name} ({role.title()})\n"
-            f"📈 **Level:** {level}/12\n"
-            f"📍 **Terakhir di:** {location}\n"
-            f"💬 **Total chat:** {session_data.get('total_messages', 0)} pesan\n\n"
-            f"✨ Mas, {bot_name} sudah siap melanjutkan cerita.\n"
-            f"_Ketik pesan untuk mulai ngobrol..._",
-            parse_mode='HTML'
-        )
-        
-    except Exception as e:
-        logger.error(f"Error in continue command: {e}")
-        await update.message.reply_text(
-            "❌ Gagal melanjutkan session, Mas. Coba lagi nanti.",
-            parse_mode='HTML'
-        )
-
-
-# =============================================================================
-# 11. PDKT COMMANDS (FULL IMPLEMENTATION) - SIMPLIFIED
+# 10. PDKT COMMANDS (FULL IMPLEMENTATION)
 # =============================================================================
 
 async def pdkt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1086,7 +908,7 @@ async def pdkt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     existing = await engine.get_active_pdkt_by_role(user_id, role)
     if existing:
         await update.message.reply_text(
-            f"❌ Kamu sudah punya PDKT dengan role {role}.\n"
+            f"❌ Mas sudah punya PDKT dengan role {role}.\n"
             f"Bot: {existing['bot_name']}\n"
             f"Gunakan /pdktlist untuk melihat daftar."
         )
@@ -1166,149 +988,647 @@ async def pdktlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(formatted, parse_mode='HTML')
 
 
-# =============================================================================
-# 12. DUMMY COMMANDS FOR OTHER HANDLERS
-# =============================================================================
-
-async def dominant_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚡ Mode dominant diaktifkan.")
-
-
-async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['paused'] = True
-    await update.message.reply_text("⏸️ Sesi dijeda.")
-
-
-async def unpause_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['paused'] = False
-    await update.message.reply_text("▶️ Sesi dilanjutkan.")
-
-
-async def jadipacar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Jadi pacar (khusus PDKT)"""
-    role = context.user_data.get('current_role')
-    bot_name = context.user_data.get('bot_name', 'Bot')
+async def pdktdetail_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lihat detail PDKT"""
+    user_id = update.effective_user.id
+    args = context.args
     
-    if not role:
-        await update.message.reply_text("❌ Kamu belum memilih role.")
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /pdktdetail [nomor]")
         return
     
-    if role != 'pdkt':
-        await update.message.reply_text("❌ Hanya role PDKT yang bisa jadi pacar.")
+    try:
+        index = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
         return
     
-    intimacy = context.user_data.get('intimacy_level', 1)
-    if intimacy < 6:
+    engine = await get_pdkt_engine()
+    pdkt_list = await engine.get_user_pdkt_list(user_id)
+    
+    if index < 1 or index > len(pdkt_list):
+        await update.message.reply_text("❌ PDKT tidak ditemukan")
+        return
+    
+    pdkt_info = pdkt_list[index - 1]
+    pdkt_data = await engine.get_pdkt(pdkt_info['pdkt_id'])
+    inner_thoughts = await engine.get_inner_thoughts(pdkt_info['pdkt_id'])
+    
+    if not pdkt_data:
+        await update.message.reply_text("❌ PDKT tidak ditemukan")
+        return
+    
+    formatted = engine.list_formatter.format_pdkt_detail(pdkt_data, inner_thoughts)
+    await update.message.reply_text(formatted, parse_mode='HTML')
+
+
+async def pdktwho_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lihat arah PDKT"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /pdktwho [nomor]")
+        return
+    
+    try:
+        index = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    engine = await get_pdkt_engine()
+    pdkt_list = await engine.get_user_pdkt_list(user_id)
+    
+    if index < 1 or index > len(pdkt_list):
+        await update.message.reply_text("❌ PDKT tidak ditemukan")
+        return
+    
+    pdkt_info = pdkt_list[index - 1]
+    pdkt_data = await engine.get_pdkt(pdkt_info['pdkt_id'])
+    
+    if not pdkt_data:
+        await update.message.reply_text("❌ PDKT tidak ditemukan")
+        return
+    
+    formatted = engine.list_formatter.format_pdkt_who(pdkt_data)
+    await update.message.reply_text(formatted, parse_mode='HTML')
+
+
+async def pausepdkt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Pause PDKT"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /pausepdkt [nomor]")
+        return
+    
+    try:
+        index = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    engine = await get_pdkt_engine()
+    pdkt_list = await engine.get_user_pdkt_list(user_id)
+    
+    if index < 1 or index > len(pdkt_list):
+        await update.message.reply_text("❌ PDKT tidak ditemukan")
+        return
+    
+    pdkt_info = pdkt_list[index - 1]
+    
+    if pdkt_info.get('is_paused', False):
+        await update.message.reply_text("⏸️ PDKT sudah dalam keadaan pause.")
+        return
+    
+    success = await engine.pause_pdkt(pdkt_info['pdkt_id'])
+    
+    if success:
         await update.message.reply_text(
-            f"❌ Intimacy level masih {intimacy}/12.\n"
-            "Minimal level 6 untuk jadi pacar."
+            f"⏸️ **PDKT dengan {pdkt_info['bot_name']} dipause.**\n\n"
+            f"Gunakan /resumepdkt {index} untuk melanjutkan."
+        )
+    else:
+        await update.message.reply_text("❌ Gagal mempause PDKT.")
+
+
+async def resumepdkt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Resume PDKT"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /resumepdkt [nomor]")
+        return
+    
+    try:
+        index = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    engine = await get_pdkt_engine()
+    pdkt_list = await engine.get_user_pdkt_list(user_id)
+    
+    if index < 1 or index > len(pdkt_list):
+        await update.message.reply_text("❌ PDKT tidak ditemukan")
+        return
+    
+    pdkt_info = pdkt_list[index - 1]
+    
+    if not pdkt_info.get('is_paused', False):
+        await update.message.reply_text("▶️ PDKT sedang tidak dalam keadaan pause.")
+        return
+    
+    success, message = await engine.resume_pdkt(pdkt_info['pdkt_id'])
+    
+    if success:
+        await update.message.reply_text(
+            f"▶️ **PDKT dengan {pdkt_info['bot_name']} dilanjutkan.**\n\n{message}"
+        )
+    else:
+        await update.message.reply_text(f"❌ Gagal melanjutkan PDKT: {message}")
+
+
+async def stoppdkt_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Hentikan PDKT"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /stoppdkt [nomor] [alasan]")
+        return
+    
+    try:
+        index = int(args[0])
+        reason = ' '.join(args[1:]) if len(args) > 1 else "user_request"
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    engine = await get_pdkt_engine()
+    pdkt_list = await engine.get_user_pdkt_list(user_id)
+    
+    if index < 1 or index > len(pdkt_list):
+        await update.message.reply_text("❌ PDKT tidak ditemukan")
+        return
+    
+    pdkt_info = pdkt_list[index - 1]
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Ya, Hentikan", callback_data=f"stop_yes_{pdkt_info['pdkt_id']}"),
+         InlineKeyboardButton("❌ Batal", callback_data="stop_no")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        f"⚠️ **Yakin ingin menghentikan PDKT dengan {pdkt_info['bot_name']}?**\n\n"
+        f"Alasan: {reason}\n\n"
+        f"PDKT akan berakhir dan {pdkt_info['bot_name']} akan menjadi mantan.",
+        reply_markup=reply_markup
+    )
+    
+    context.user_data['pending_stop'] = {
+        'pdkt_id': pdkt_info['pdkt_id'],
+        'reason': reason,
+        'index': index
+    }
+
+
+# =============================================================================
+# 11. MANTAN & FWB COMMANDS
+# =============================================================================
+
+async def mantanlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lihat daftar mantan"""
+    user_id = update.effective_user.id
+    
+    mantan_manager = await get_mantan_manager()
+    formatted = mantan_manager.format_mantan_list(user_id)
+    
+    await update.message.reply_text(formatted, parse_mode='HTML')
+
+
+async def mantan_detail_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lihat detail mantan"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /mantan [nomor]")
+        return
+    
+    try:
+        index = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    mantan_manager = await get_mantan_manager()
+    mantan = mantan_manager.get_mantan_by_index(user_id, index)
+    
+    if not mantan:
+        await update.message.reply_text("❌ Mantan tidak ditemukan")
+        return
+    
+    formatted = mantan_manager.format_mantan_detail(mantan)
+    await update.message.reply_text(formatted, parse_mode='HTML')
+
+
+async def fwbrequest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Request jadi FWB dengan mantan"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /fwbrequest [nomor] [pesan]")
+        return
+    
+    try:
+        index = int(args[0])
+        message = ' '.join(args[1:]) if len(args) > 1 else ""
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    mantan_manager = await get_mantan_manager()
+    mantan = mantan_manager.get_mantan_by_index(user_id, index)
+    
+    if not mantan:
+        await update.message.reply_text("❌ Mantan tidak ditemukan")
+        return
+    
+    result = await mantan_manager.request_fwb(user_id, mantan['mantan_id'], message)
+    
+    if result['success']:
+        await update.message.reply_text(result['message'], parse_mode='HTML')
+    else:
+        await update.message.reply_text(f"❌ {result['reason']}")
+
+
+async def fwblist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lihat daftar FWB"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    show_all = args and args[0].lower() == 'all'
+    
+    fwb_manager = await get_fwb_manager()
+    formatted = await fwb_manager.format_fwb_list(user_id, show_all)
+    
+    await update.message.reply_text(formatted, parse_mode='HTML')
+
+
+async def fwb_pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Pause FWB"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /fwb pause [nomor]")
+        return
+    
+    try:
+        index = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    fwb_manager = await get_fwb_manager()
+    fwb = await fwb_manager.get_fwb_by_index(user_id, index)
+    
+    if not fwb:
+        await update.message.reply_text("❌ FWB tidak ditemukan")
+        return
+    
+    result = await fwb_manager.pause_fwb(user_id, fwb['fwb_id'])
+    
+    if result['success']:
+        await update.message.reply_text(
+            f"⏸️ **FWB dengan {result['bot_name']} dipause.**\n\n"
+            f"Gunakan /fwb resume {index} untuk melanjutkan."
+        )
+    else:
+        await update.message.reply_text(f"❌ {result['reason']}")
+
+
+async def fwb_resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Resume FWB"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /fwb resume [nomor]")
+        return
+    
+    try:
+        index = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    fwb_manager = await get_fwb_manager()
+    fwb = await fwb_manager.get_fwb_by_index(user_id, index)
+    
+    if not fwb:
+        await update.message.reply_text("❌ FWB tidak ditemukan")
+        return
+    
+    result = await fwb_manager.resume_fwb(user_id, fwb['fwb_id'])
+    
+    if result['success']:
+        await update.message.reply_text(
+            f"▶️ **FWB dengan {result['bot_name']} dilanjutkan.**\n\n{result['message']}"
+        )
+    else:
+        await update.message.reply_text(f"❌ {result['reason']}")
+
+
+async def fwb_end_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Akhiri FWB"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Gunakan: /fwb end [nomor]")
+        return
+    
+    try:
+        index = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Masukkan nomor yang valid")
+        return
+    
+    fwb_manager = await get_fwb_manager()
+    fwb = await fwb_manager.get_fwb_by_index(user_id, index)
+    
+    if not fwb:
+        await update.message.reply_text("❌ FWB tidak ditemukan")
+        return
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Ya, Akhiri", callback_data=f"fwb_end_yes_{fwb['fwb_id']}"),
+         InlineKeyboardButton("❌ Batal", callback_data="fwb_end_no")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        f"⚠️ **Yakin ingin mengakhiri FWB dengan {fwb['bot_name']}?**\n\n"
+        f"Hubungan FWB akan berakhir dan {fwb['bot_name']} akan kembali menjadi mantan.",
+        reply_markup=reply_markup
+    )
+
+
+# =============================================================================
+# 12. RANKING COMMANDS
+# =============================================================================
+
+async def tophts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """TOP 5 HTS"""
+    user_id = update.effective_user.id
+    args = context.args
+    
+    show_all = args and args[0].lower() == 'all'
+    
+    ranking = await get_ranking_system()
+    hts_list = await ranking.get_top_5_hts(user_id) if not show_all else await ranking.get_all_hts(user_id)
+    
+    if not hts_list:
+        await update.message.reply_text(
+            "🏆 **TOP 5 HTS**\n\n"
+            "Belum ada HTS. Mulai role dulu dengan /start, Mas."
         )
         return
     
-    context.user_data['relationship_status'] = 'pacar'
-    
-    await update.message.reply_text(
-        f"💘 <b>Kita jadi pacar!</b>\n\n"
-        f"Sekarang kamu resmi pacaran sama {bot_name}.\n"
-        f"Jaga hubungan kita ya sayang ❤️",
-        parse_mode='HTML'
-    )
+    formatted = ranking.format_hts_list(hts_list, show_all)
+    await update.message.reply_text(formatted, parse_mode='HTML')
 
 
-async def break_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Jeda pacaran"""
-    status = context.user_data.get('relationship_status')
-    bot_name = context.user_data.get('bot_name', 'Bot')
+async def myclimax_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Statistik climax user"""
+    user_id = update.effective_user.id
     
-    if not status:
-        await update.message.reply_text("❌ Kamu belum memilih role.")
-        return
+    storage = await get_session_storage()
+    stats = await storage.get_stats(user_id)
     
-    if status != 'pacar':
-        await update.message.reply_text("❌ Kamu sedang tidak pacaran.")
-        return
+    ranking = await get_ranking_system()
+    ranking_stats = await ranking.get_ranking_stats(user_id)
     
-    context.user_data['relationship_status'] = 'break'
-    context.user_data['break_start'] = time.time()
+    response = f"""💦 **STATISTIK CLIMAX**
+
+📊 **Total Climax:** {ranking_stats.get('top_hts_score', 0):.0f}
+📈 **Total Chat:** {stats.get('total_messages', 0)}
+💕 **Total HTS:** {ranking_stats.get('total_hts', 0)}
+💞 **Total FWB:** {ranking_stats.get('total_fwb', 0)}
+
+💡 *Semakin sering intim, semakin cepat level naik!*
+💡 *Climax memberi boost besar ke progress!*"""
     
-    await update.message.reply_text(
-        f"⏸️ <b>Hubungan dijeda</b>\n\n"
-        f"Kita istirahat dulu ya. Kapan-kapan bisa lanjut lagi, {bot_name}.",
-        parse_mode='HTML'
-    )
+    await update.message.reply_text(response, parse_mode='HTML')
 
 
-async def unbreak_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lanjutkan pacaran"""
-    status = context.user_data.get('relationship_status')
-    bot_name = context.user_data.get('bot_name', 'Bot')
+async def climaxhistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """History climax"""
+    user_id = update.effective_user.id
     
-    if status != 'break':
-        await update.message.reply_text("❌ Hubungan sedang tidak dalam masa jeda.")
-        return
+    storage = await get_session_storage()
+    sessions = await storage.get_user_sessions(user_id, limit=10)
     
-    context.user_data['relationship_status'] = 'pacar'
-    break_duration = time.time() - context.user_data.get('break_start', time.time())
-    break_hours = int(break_duration / 3600)
+    climax_events = []
+    for session in sessions:
+        full = await storage.get_full_session(session['id'])
+        if full and full.get('conversation'):
+            for msg in full['conversation']:
+                if 'climax' in msg.get('bot', '').lower() or 'climax' in msg.get('user', '').lower():
+                    climax_events.append({
+                        'time': msg['timestamp'],
+                        'session': session['bot_name'],
+                        'context': msg['user'][:50]
+                    })
     
-    await update.message.reply_text(
-        f"▶️ <b>Hubungan dilanjutkan!</b>\n\n"
-        f"Setelah jeda {break_hours} jam, kita balikan lagi.\n"
-        f"Aku kangen kamu... -{bot_name}",
-        parse_mode='HTML'
-    )
-
-
-async def breakup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Putus jadi FWB"""
-    role = context.user_data.get('current_role')
-    bot_name = context.user_data.get('bot_name', 'Bot')
-    
-    if role != 'pdkt':
-        await update.message.reply_text("❌ Hanya role PDKT yang bisa FWB.")
-        return
-    
-    context.user_data['relationship_status'] = 'fwb'
-    
-    await update.message.reply_text(
-        f"💔 <b>Putus... Tapi tetap FWB</b>\n\n"
-        f"Hubungan kita berubah jadi Friends With Benefits.\n"
-        f"Masih bisa intim, tapi tanpa komitmen.\n"
-        f"-{bot_name}",
-        parse_mode='HTML'
-    )
-
-
-async def fwb_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Switch ke mode FWB"""
-    role = context.user_data.get('current_role')
-    bot_name = context.user_data.get('bot_name', 'Bot')
-    
-    if role != 'pdkt':
-        await update.message.reply_text("❌ Hanya role PDKT yang bisa FWB.")
-        return
-    
-    intimacy = context.user_data.get('intimacy_level', 1)
-    if intimacy < 6:
+    if not climax_events:
         await update.message.reply_text(
-            f"❌ Intimacy level masih {intimacy}/12.\n"
-            "Minimal level 6 untuk FWB."
+            "📜 **CLIMAX HISTORY**\n\n"
+            "Belum ada history climax, Mas.\n"
+            "Mulai intim dengan bot untuk mendapatkan history!"
         )
         return
     
-    current = context.user_data.get('relationship_status')
-    new_status = 'pacar' if current == 'fwb' else 'fwb'
-    context.user_data['relationship_status'] = new_status
+    climax_events.sort(key=lambda x: x['time'], reverse=True)
+    
+    lines = ["📜 **CLIMAX HISTORY**\n"]
+    for i, event in enumerate(climax_events[:10], 1):
+        time_str = datetime.fromtimestamp(event['time']).strftime("%d %b %H:%M")
+        lines.append(f"{i}. [{time_str}] {event['session']}")
+        lines.append(f"   {event['context'][:40]}...")
+    
+    await update.message.reply_text("\n".join(lines), parse_mode='HTML')
+
+
+# =============================================================================
+# HTS COMMAND
+# =============================================================================
+
+async def hts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mengajak role menjadi HTS (minimal level 5)"""
+    user_id = update.effective_user.id
+    
+    session_id = context.user_data.get('current_session')
+    if not session_id:
+        await update.message.reply_text(
+            "❌ Mas belum memulai hubungan.\n"
+            "Ketik /start untuk memilih role."
+        )
+        return
+    
+    role = context.user_data.get('current_role')
+    bot_name = context.user_data.get('bot_name')
+    level = context.user_data.get('intimacy_level', 1)
+    
+    if level < 5:
+        await update.message.reply_text(
+            f"❌ Level intimacy masih {level}/12.\n"
+            f"Minimal level 5 untuk menjadi HTS.\n\n"
+            f"Progress: {level}/12\n"
+            f"Gunakan /progress untuk melihat detail."
+        )
+        return
+    
+    rel_status = context.user_data.get('relationship_status', 'pdkt')
+    if rel_status == 'hts':
+        await update.message.reply_text(
+            f"💕 Mas sudah dalam status HTS dengan {bot_name}.\n"
+            f"Gunakan /status untuk melihat detail."
+        )
+        return
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Ya, Jadi HTS", callback_data=f"hts_yes_{session_id}"),
+         InlineKeyboardButton("❌ Batal", callback_data="hts_no")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        f"💕 <b>Mode {new_status.upper()}</b>\n\n"
-        f"Status dengan {bot_name} sekarang: {new_status}",
+        f"⚠️ **Konfirmasi HTS dengan {bot_name}**\n\n"
+        f"Level Intimacy: {level}/12\n"
+        f"Status saat ini: {rel_status.upper()}\n\n"
+        f"HTS (Hubungan Tanpa Status):\n"
+        f"• Bisa intim kapan saja\n"
+        f"• Tanpa komitmen pacaran\n"
+        f"• Bisa berakhir kapan saja\n\n"
+        f"**Yakin ingin menjadi HTS, Mas?**",
+        reply_markup=reply_markup,
         parse_mode='HTML'
     )
 
 
 # =============================================================================
-# 13. PUBLIC AREA COMMANDS
+# 14. SESSION CONTINUE COMMAND (FULL IMPLEMENTATION)
+# =============================================================================
+
+async def continue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Lihat dan lanjutkan session tersimpan
+    
+    Usage:
+        /continue - Menampilkan daftar session
+        /continue 1 - Melanjutkan session nomor 1
+        /continue MYLOVE-SARI-IPAR-123-20240315-001 - Melanjutkan dengan ID langsung
+    """
+    try:
+        user_id = update.effective_user.id
+        args = context.args
+        
+        # Dapatkan continuation instance
+        continuation = await get_session_continuation()
+        
+        # Jika tanpa argumen, tampilkan daftar session
+        if not args:
+            sessions = await continuation.get_continuable_sessions(user_id)
+            
+            if not sessions:
+                await update.message.reply_text(
+                    "📋 **DAFTAR SESSION**\n\n"
+                    "Belum ada session tersimpan, Mas.\n"
+                    "Mulai dengan /start untuk membuat session baru.",
+                    parse_mode='HTML'
+                )
+                return
+            
+            # Format daftar session
+            lines = ["📋 **DAFTAR SESSION**"]
+            lines.append("_(pilih dengan /continue [nomor])_")
+            lines.append("")
+            
+            for i, session in enumerate(sessions[:10], 1):
+                # Status
+                status = "🟢 ACTIVE" if session.get('is_active') else "⚪ CLOSED"
+                
+                # Progress bar level
+                level = session.get('intimacy_level', 1)
+                level_bar = "❤️" * level + "🖤" * (12 - level)
+                
+                # Waktu terakhir
+                age_days = session.get('age_days', 0)
+                if age_days == 0:
+                    age_text = "Hari ini"
+                elif age_days == 1:
+                    age_text = "Kemarin"
+                else:
+                    age_text = f"{age_days} hari lalu"
+                
+                # Summary
+                summary = session.get('summary', '')
+                if len(summary) > 50:
+                    summary = summary[:50] + "..."
+                
+                lines.append(
+                    f"{i}. **{session['bot_name']}** ({session['role'].title()}) {status}\n"
+                    f"   📈 Level: {level}/12 {level_bar}\n"
+                    f"   💬 {session.get('total_messages', 0)} pesan\n"
+                    f"   🕐 {age_text}\n"
+                    f"   📝 {summary}"
+                )
+                lines.append("")
+            
+            lines.append("💡 **Cara pakai, Mas:**")
+            lines.append("• `/continue 1` - Lanjut session nomor 1")
+            lines.append("• `/continue MYLOVE-SARI-IPAR-123-20240315-001` - Pakai ID langsung")
+            
+            await update.message.reply_text("\n".join(lines), parse_mode='HTML')
+            return
+        
+        # Jika ada argumen, coba lanjutkan session
+        input_str = ' '.join(args)
+        
+        # Cari session berdasarkan input
+        session_data = await continuation.find_session_by_input(user_id, input_str)
+        
+        if not session_data:
+            await update.message.reply_text(
+                "❌ Session tidak ditemukan, Mas.\n"
+                "Ketik /continue untuk lihat daftar session.",
+                parse_mode='HTML'
+            )
+            return
+        
+        # Lanjutkan session
+        result = await continuation.continue_session(user_id, session_data['id'])
+        
+        # Restore data ke context user
+        context.user_data['current_session'] = session_data['id']
+        context.user_data['current_role'] = session_data['role']
+        context.user_data['bot_name'] = session_data.get('bot_name', session_data['role'].title())
+        context.user_data['intimacy_level'] = session_data.get('intimacy_level', 1)
+        context.user_data['total_chats'] = session_data.get('total_messages', 0)
+        context.user_data['current_location'] = session_data.get('location', 'ruang tamu')
+        
+        # Restore relationship status
+        rel_status = session_data.get('relationship_status', 'pdkt')
+        context.user_data['relationship_status'] = rel_status
+        
+        # Kirim pesan sukses
+        await update.message.reply_text(
+            f"🔄 **Melanjutkan Session**\n\n"
+            f"{result['context']}\n\n"
+            f"_Ketik pesan untuk melanjutkan cerita, Mas..._",
+            parse_mode='HTML'
+        )
+        
+    except ValueError as e:
+        await update.message.reply_text(f"❌ {str(e)}", parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"Error in continue command: {e}")
+        await update.message.reply_text(
+            "❌ Gagal melanjutkan session. Coba lagi nanti, Mas.",
+            parse_mode='HTML'
+        )
+
+
+# =============================================================================
+# 15. PUBLIC AREA COMMANDS
 # =============================================================================
 
 async def explore_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1321,8 +1641,8 @@ async def explore_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         f"📍 <b>{location}</b>\n\n"
-        f"Mau ke sini? Ketik: \"ke {location.lower()} yuk\"\n"
-        f"Bot akan auto-detect lokasi kamu!",
+        f"Mau ke sini, Mas? Ketik: \"ke {location.lower()} yuk\"\n"
+        f"Bot akan auto-detect lokasi Mas!",
         parse_mode='HTML'
     )
 
@@ -1336,7 +1656,7 @@ async def locations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🌳 <b>Nature</b> - Pantai, hutan, taman, kebun, sawah, bukit\n"
         "⚡ <b>Extreme</b> - Masjid, gereja, polisi, sekolah, kuburan\n"
         "🚗 <b>Transport</b> - Mobil, kereta, bus, kapal, pesawat\n\n"
-        "💡 <i>Ketik: 'ke pantai yuk' untuk pindah lokasi</i>",
+        "💡 <i>Ketik: 'ke pantai yuk' untuk pindah lokasi, Mas</i>",
         parse_mode='HTML'
     )
 
@@ -1348,7 +1668,7 @@ async def risk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if location == 'Tidak diketahui':
         await update.message.reply_text(
             "📍 <b>Risk Assessment</b>\n\n"
-            "Kamu belum berada di lokasi manapun.\n"
+            "Mas belum berada di lokasi manapun.\n"
             "Pindah dulu, misal: 'ke pantai yuk'",
             parse_mode='HTML'
         )
@@ -1373,70 +1693,13 @@ async def risk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📍 <b>{location}</b>\n"
         f"⚠️ <b>Risk Level:</b> {risk}% ({level})\n"
         f"📝 {desc}\n\n"
-        f"💡 <i>Semakin tinggi risk, semakin besar thrill-nya!</i>",
+        f"💡 <i>Semakin tinggi risk, semakin besar thrill-nya, Mas!</i>",
         parse_mode='HTML'
     )
 
 
 # =============================================================================
-# 14. HTS COMMAND
-# =============================================================================
-
-async def hts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Mengajak role menjadi HTS (minimal level 5)"""
-    user_id = update.effective_user.id
-    
-    session_id = context.user_data.get('current_session')
-    if not session_id:
-        await update.message.reply_text(
-            "❌ Kamu belum memulai hubungan.\n"
-            "Ketik /start untuk memilih role."
-        )
-        return
-    
-    role = context.user_data.get('current_role')
-    bot_name = context.user_data.get('bot_name')
-    level = context.user_data.get('intimacy_level', 1)
-    
-    if level < 5:
-        await update.message.reply_text(
-            f"❌ Level intimacy masih {level}/12.\n"
-            f"Minimal level 5 untuk menjadi HTS.\n\n"
-            f"Progress: {level}/12\n"
-            f"Gunakan /progress untuk melihat detail."
-        )
-        return
-    
-    rel_status = context.user_data.get('relationship_status', 'pdkt')
-    if rel_status == 'hts':
-        await update.message.reply_text(
-            f"💕 Kamu sudah dalam status HTS dengan {bot_name}.\n"
-            f"Gunakan /status untuk melihat detail."
-        )
-        return
-    
-    keyboard = [
-        [InlineKeyboardButton("✅ Ya, Jadi HTS", callback_data=f"hts_yes_{session_id}"),
-         InlineKeyboardButton("❌ Batal", callback_data="hts_no")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        f"⚠️ **Konfirmasi HTS dengan {bot_name}**\n\n"
-        f"Level Intimacy: {level}/12\n"
-        f"Status saat ini: {rel_status.upper()}\n\n"
-        f"HTS (Hubungan Tanpa Status):\n"
-        f"• Bisa intim kapan saja\n"
-        f"• Tanpa komitmen pacaran\n"
-        f"• Bisa berakhir kapan saja\n\n"
-        f"**Yakin ingin menjadi HTS?**",
-        reply_markup=reply_markup,
-        parse_mode='HTML'
-    )
-
-
-# =============================================================================
-# 15. DB STATS & DEBUG
+# 16. DB STATS & DEBUG
 # =============================================================================
 
 async def db_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1505,7 +1768,148 @@ async def debug_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =============================================================================
-# 16. HTS/FWB LEGACY COMMANDS
+# 17. DUMMY COMMANDS
+# =============================================================================
+
+async def dominant_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⚡ Mode dominant diaktifkan.")
+
+
+async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['paused'] = True
+    await update.message.reply_text("⏸️ Sesi dijeda, Mas.")
+
+
+async def unpause_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['paused'] = False
+    await update.message.reply_text("▶️ Sesi dilanjutkan, Mas.")
+
+
+async def jadipacar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Jadi pacar (khusus PDKT)"""
+    role = context.user_data.get('current_role')
+    bot_name = context.user_data.get('bot_name', 'Bot')
+    
+    if not role:
+        await update.message.reply_text("❌ Mas belum memilih role.")
+        return
+    
+    if role != 'pdkt':
+        await update.message.reply_text("❌ Hanya role PDKT yang bisa jadi pacar.")
+        return
+    
+    intimacy = context.user_data.get('intimacy_level', 1)
+    if intimacy < 6:
+        await update.message.reply_text(
+            f"❌ Intimacy level masih {intimacy}/12.\n"
+            "Minimal level 6 untuk jadi pacar."
+        )
+        return
+    
+    context.user_data['relationship_status'] = 'pacar'
+    
+    await update.message.reply_text(
+        f"💘 <b>Kita jadi pacar!</b>\n\n"
+        f"Sekarang Mas resmi pacaran sama {bot_name}.\n"
+        f"Jaga hubungan kita ya sayang ❤️",
+        parse_mode='HTML'
+    )
+
+
+async def break_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Jeda pacaran"""
+    status = context.user_data.get('relationship_status')
+    bot_name = context.user_data.get('bot_name', 'Bot')
+    
+    if not status:
+        await update.message.reply_text("❌ Mas belum memilih role.")
+        return
+    
+    if status != 'pacar':
+        await update.message.reply_text("❌ Mas sedang tidak pacaran.")
+        return
+    
+    context.user_data['relationship_status'] = 'break'
+    context.user_data['break_start'] = time.time()
+    
+    await update.message.reply_text(
+        f"⏸️ <b>Hubungan dijeda</b>\n\n"
+        f"Kita istirahat dulu ya. Kapan-kapan bisa lanjut lagi, {bot_name}.",
+        parse_mode='HTML'
+    )
+
+
+async def unbreak_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lanjutkan pacaran"""
+    status = context.user_data.get('relationship_status')
+    bot_name = context.user_data.get('bot_name', 'Bot')
+    
+    if status != 'break':
+        await update.message.reply_text("❌ Hubungan sedang tidak dalam masa jeda.")
+        return
+    
+    context.user_data['relationship_status'] = 'pacar'
+    break_duration = time.time() - context.user_data.get('break_start', time.time())
+    break_hours = int(break_duration / 3600)
+    
+    await update.message.reply_text(
+        f"▶️ <b>Hubungan dilanjutkan!</b>\n\n"
+        f"Setelah jeda {break_hours} jam, kita balikan lagi.\n"
+        f"Aku kangen Mas... -{bot_name}",
+        parse_mode='HTML'
+    )
+
+
+async def breakup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Putus jadi FWB"""
+    role = context.user_data.get('current_role')
+    bot_name = context.user_data.get('bot_name', 'Bot')
+    
+    if role != 'pdkt':
+        await update.message.reply_text("❌ Hanya role PDKT yang bisa FWB.")
+        return
+    
+    context.user_data['relationship_status'] = 'fwb'
+    
+    await update.message.reply_text(
+        f"💔 <b>Putus... Tapi tetap FWB</b>\n\n"
+        f"Hubungan kita berubah jadi Friends With Benefits.\n"
+        f"Masih bisa intim, tapi tanpa komitmen.\n"
+        f"-{bot_name}",
+        parse_mode='HTML'
+    )
+
+
+async def fwb_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Switch ke mode FWB"""
+    role = context.user_data.get('current_role')
+    bot_name = context.user_data.get('bot_name', 'Bot')
+    
+    if role != 'pdkt':
+        await update.message.reply_text("❌ Hanya role PDKT yang bisa FWB.")
+        return
+    
+    intimacy = context.user_data.get('intimacy_level', 1)
+    if intimacy < 6:
+        await update.message.reply_text(
+            f"❌ Intimacy level masih {intimacy}/12.\n"
+            "Minimal level 6 untuk FWB."
+        )
+        return
+    
+    current = context.user_data.get('relationship_status')
+    new_status = 'pacar' if current == 'fwb' else 'fwb'
+    context.user_data['relationship_status'] = new_status
+    
+    await update.message.reply_text(
+        f"💕 <b>Mode {new_status.upper()}</b>\n\n"
+        f"Status dengan {bot_name} sekarang: {new_status}",
+        parse_mode='HTML'
+    )
+
+
+# =============================================================================
+# HTS/FWB CALL HANDLERS (LEGACY)
 # =============================================================================
 
 async def htslist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1523,88 +1927,6 @@ async def fwb_call_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler untuk /fwb- [id]"""
     text = update.message.text
     await update.message.reply_text(f"✅ Memanggil FWB {text}")
-
-
-async def tophts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """TOP 5 HTS"""
-    user_id = update.effective_user.id
-    args = context.args
-    
-    show_all = args and args[0].lower() == 'all'
-    
-    ranking = await get_ranking_system()
-    hts_list = await ranking.get_top_5_hts(user_id) if not show_all else await ranking.get_all_hts(user_id)
-    
-    if not hts_list:
-        await update.message.reply_text(
-            "🏆 **TOP 5 HTS**\n\n"
-            "Belum ada HTS. Mulai role dulu dengan /start, Mas."
-        )
-        return
-    
-    formatted = ranking.format_hts_list(hts_list, show_all)
-    await update.message.reply_text(formatted, parse_mode='HTML')
-
-
-async def myclimax_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Statistik climax user"""
-    user_id = update.effective_user.id
-    
-    storage = await get_session_storage()
-    stats = await storage.get_stats(user_id)
-    
-    ranking = await get_ranking_system()
-    ranking_stats = await ranking.get_ranking_stats(user_id)
-    
-    response = f"""💦 **STATISTIK CLIMAX**
-
-📊 **Total Climax:** {ranking_stats.get('top_hts_score', 0):.0f}
-📈 **Total Chat:** {stats.get('total_messages', 0)}
-💕 **Total HTS:** {ranking_stats.get('total_hts', 0)}
-💞 **Total FWB:** {ranking_stats.get('total_fwb', 0)}
-
-💡 *Semakin sering intim, semakin cepat level naik!*
-💡 *Climax memberi boost besar ke progress!*"""
-    
-    await update.message.reply_text(response, parse_mode='HTML')
-
-
-async def climaxhistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """History climax"""
-    user_id = update.effective_user.id
-    
-    storage = await get_session_storage()
-    sessions = await storage.get_user_sessions(user_id, limit=10)
-    
-    climax_events = []
-    for session in sessions:
-        full = await storage.get_full_session(session['id'])
-        if full and full.get('conversation'):
-            for msg in full['conversation']:
-                if 'climax' in msg.get('bot', '').lower() or 'climax' in msg.get('user', '').lower():
-                    climax_events.append({
-                        'time': msg['timestamp'],
-                        'session': session['bot_name'],
-                        'context': msg['user'][:50]
-                    })
-    
-    if not climax_events:
-        await update.message.reply_text(
-            "📜 **CLIMAX HISTORY**\n\n"
-            "Belum ada history climax.\n"
-            "Mulai intim dengan bot untuk mendapatkan history!"
-        )
-        return
-    
-    climax_events.sort(key=lambda x: x['time'], reverse=True)
-    
-    lines = ["📜 **CLIMAX HISTORY**\n"]
-    for i, event in enumerate(climax_events[:10], 1):
-        time_str = datetime.fromtimestamp(event['time']).strftime("%d %b %H:%M")
-        lines.append(f"{i}. [{time_str}] {event['session']}")
-        lines.append(f"   {event['context'][:40]}...")
-    
-    await update.message.reply_text("\n".join(lines), parse_mode='HTML')
 
 
 # =============================================================================
@@ -1645,6 +1967,15 @@ __all__ = [
     'pausepdkt_command',
     'resumepdkt_command',
     'stoppdkt_command',
+    
+    # Mantan & FWB V3 commands
+    'mantanlist_command',
+    'mantan_detail_command',
+    'fwbrequest_command',
+    'fwblist_command',
+    'fwb_pause_command',
+    'fwb_resume_command',
+    'fwb_end_command',
     
     # Ranking commands
     'tophts_command',
