@@ -1,15 +1,12 @@
-# config/__init__.py
+# configs/__init__.py
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-MYLOVE PREMIUM AI V3 - CONFIG PACKAGE
+MYLOVE PREMIUM AI V3 - CONFIGS PACKAGE
 =============================================================================
 Package untuk konfigurasi V3 (role behavior, gesture, dll)
 """
 
-# =============================================================================
-# V3 NEW (SEMUA BARU)
-# =============================================================================
 from .role_behavior_config import (
     IPAR_CONFIG,
     TEMAN_KANTOR_CONFIG,
