@@ -43,8 +43,6 @@ async def create_users_table():
     """)
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)")
-    await db.commit()
-    logger.info("✅ users table created")
 
 
 async def create_sessions_table():
@@ -73,8 +71,6 @@ async def create_sessions_table():
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)")
-    await db.commit()
-    logger.info("✅ sessions table created")
 
 
 async def create_conversations_table():
@@ -96,8 +92,6 @@ async def create_conversations_table():
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_conversations_session_id ON conversations(session_id)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)")
-    await db.commit()
-    logger.info("✅ conversations table created")
 
 
 async def create_pdkt_tables():
@@ -147,8 +141,6 @@ async def create_pdkt_tables():
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_pdkt_user_id ON pdkt_sessions(user_id)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_pdkt_status ON pdkt_sessions(status)")
-    await db.commit()
-    logger.info("✅ PDKT tables created")
 
 
 async def create_mantan_tables():
@@ -182,8 +174,6 @@ async def create_mantan_tables():
     """)
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_mantan_user_id ON mantan(user_id)")
-    await db.commit()
-    logger.info("✅ Mantan tables created")
 
 
 async def create_fwb_tables():
@@ -214,8 +204,6 @@ async def create_fwb_tables():
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_fwb_user_id ON fwb_relations(user_id)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_fwb_status ON fwb_relations(status)")
-    await db.commit()
-    logger.info("✅ FWB tables created")
 
 
 async def create_hts_tables():
@@ -244,8 +232,6 @@ async def create_hts_tables():
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_hts_user_id ON hts_relations(user_id)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_hts_status ON hts_relations(status)")
-    await db.commit()
-    logger.info("✅ HTS tables created")
 
 
 async def create_memories_table():
@@ -269,8 +255,6 @@ async def create_memories_table():
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_memories_user_id ON memories(user_id)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_memories_memory_type ON memories(memory_type)")
-    await db.commit()
-    logger.info("✅ memories table created")
 
 
 async def create_preferences_table():
@@ -293,8 +277,6 @@ async def create_preferences_table():
     """)
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_preferences_user_id ON preferences(user_id)")
-    await db.commit()
-    logger.info("✅ preferences table created")
 
 
 async def create_milestones_table():
@@ -316,8 +298,6 @@ async def create_milestones_table():
     """)
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_milestones_user_id ON milestones(user_id)")
-    await db.commit()
-    logger.info("✅ milestones table created")
 
 
 async def create_backups_table():
@@ -335,9 +315,6 @@ async def create_backups_table():
             metadata TEXT DEFAULT '{}'
         )
     """)
-    
-    await db.commit()
-    logger.info("✅ backups table created")
 
 
 async def create_threesome_tables():
@@ -385,8 +362,6 @@ async def create_threesome_tables():
     """)
     
     await db.execute("CREATE INDEX IF NOT EXISTS idx_threesome_user_id ON threesome_sessions(user_id)")
-    await db.commit()
-    logger.info("✅ Threesome tables created")
 
 
 async def create_user_sessions_table():
@@ -396,7 +371,7 @@ async def create_user_sessions_table():
     db = await get_db()
     
     # Cek apakah tabel sudah ada
-    result = await db.fetch_one(
+    result = await fetch_one(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='user_sessions'"
     )
     
@@ -450,8 +425,6 @@ async def create_user_sessions_table():
     await db.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_role ON user_sessions(role)")
     await db.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_updated_at ON user_sessions(updated_at)")
     
-    await db.commit()
-    
     logger.info("✅ Table user_sessions created successfully")
 
 
@@ -463,7 +436,7 @@ async def fix_missing_columns():
     db = await get_db()
     
     # Cek apakah tabel ada
-    result = await db.fetch_one(
+    result = await fetch_one(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='user_sessions'"
     )
     
@@ -497,7 +470,7 @@ async def fix_missing_columns():
     }
     
     # Dapatkan kolom yang sudah ada
-    existing = await db.fetch_all("PRAGMA table_info(user_sessions)")
+    existing = await fetch_all("PRAGMA table_info(user_sessions)")
     existing_names = [col['name'] for col in existing]
     
     added = 0
@@ -511,7 +484,6 @@ async def fix_missing_columns():
                 logger.warning(f"⚠️ Could not add column {col_name}: {e}")
     
     if added > 0:
-        await db.commit()
         logger.info(f"📊 Fixed {added} missing columns")
     else:
         logger.info("✅ No missing columns found")
@@ -566,7 +538,7 @@ async def run_migrations():
     db = await get_db()
     
     # Hitung jumlah tabel
-    tables = await db.fetch_all("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = await fetch_all("SELECT name FROM sqlite_master WHERE type='table'")
     logger.info(f"📊 Total tables: {len(tables)}")
     
     # Tampilkan daftar tabel
@@ -591,11 +563,7 @@ async def reset_user_session(user_id: int):
         user_id: ID Telegram user
     """
     db = await get_db()
-    
     await db.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
-    await db.commit()
-    
-    logger.info(f"🗑️ Reset user session for user {user_id}")
 
 
 async def cleanup_old_sessions(days: int = 30):
@@ -606,22 +574,9 @@ async def cleanup_old_sessions(days: int = 30):
         days: Jumlah hari untuk session dianggap kadaluarsa
     """
     db = await get_db()
-    
     cutoff = time.time() - (days * 86400)
-    
-    # Hapus session yang tidak aktif
-    result = await db.execute(
-        "DELETE FROM user_sessions WHERE updated_at < ?",
-        (cutoff,)
-    )
-    
-    deleted = result.rowcount
-    
-    if deleted > 0:
-        await db.commit()
-        logger.info(f"🧹 Cleaned up {deleted} old sessions (inactive > {days} days)")
-    else:
-        logger.info(f"🧹 No old sessions to clean up")
+    await db.execute("DELETE FROM user_sessions WHERE updated_at < ?", (cutoff,))
+    logger.info(f"🧹 Cleaned up old sessions (inactive > {days} days)")
 
 
 async def backup_user_sessions(backup_dir: str = "backups"):
@@ -640,7 +595,7 @@ async def backup_user_sessions(backup_dir: str = "backups"):
     os.makedirs(backup_dir, exist_ok=True)
     
     # Ambil semua session
-    sessions = await db.fetch_all("SELECT * FROM user_sessions")
+    sessions = await fetch_all("SELECT * FROM user_sessions")
     
     if not sessions:
         logger.info("📭 No user sessions to backup")
@@ -695,7 +650,7 @@ async def restore_user_sessions(backup_file: str):
             continue
         
         # Cek apakah sudah ada
-        existing = await db.fetch_one(
+        existing = await fetch_one(
             "SELECT id FROM user_sessions WHERE user_id = ?",
             (user_id,)
         )
@@ -767,8 +722,6 @@ async def restore_user_sessions(backup_file: str):
         
         restored += 1
     
-    await db.commit()
-    
     logger.info(f"📥 Restored {restored} sessions from {backup_file} (skipped: {skipped})")
 
 
@@ -779,13 +732,11 @@ async def get_user_sessions_stats() -> Dict[str, Any]:
     Returns:
         Dict statistik
     """
-    db = await get_db()
-    
     # Total sessions
-    total = await db.fetch_one("SELECT COUNT(*) as count FROM user_sessions")
+    total = await fetch_one("SELECT COUNT(*) as count FROM user_sessions")
     
     # Sessions by role
-    by_role = await db.fetch_all("""
+    by_role = await fetch_all("""
         SELECT role, COUNT(*) as count 
         FROM user_sessions 
         WHERE role IS NOT NULL 
@@ -794,17 +745,17 @@ async def get_user_sessions_stats() -> Dict[str, Any]:
     """)
     
     # Average intimacy level
-    avg_intimacy = await db.fetch_one("SELECT AVG(intimacy_level) as avg FROM user_sessions")
+    avg_intimacy = await fetch_one("SELECT AVG(intimacy_level) as avg FROM user_sessions")
     
     # Active sessions (updated in last 24 hours)
     day_ago = time.time() - 86400
-    active = await db.fetch_one(
+    active = await fetch_one(
         "SELECT COUNT(*) as count FROM user_sessions WHERE updated_at > ?",
         (day_ago,)
     )
     
     # Most common locations
-    top_locations = await db.fetch_all("""
+    top_locations = await fetch_all("""
         SELECT current_location, COUNT(*) as count 
         FROM user_sessions 
         GROUP BY current_location 
@@ -814,10 +765,10 @@ async def get_user_sessions_stats() -> Dict[str, Any]:
     
     return {
         'total_sessions': total['count'] if total else 0,
-        'by_role': [{'role': r['role'], 'count': r['count']} for r in by_role],
+        'by_role': [{'role': r['role'], 'count': r['count']} for r in by_role] if by_role else [],
         'avg_intimacy_level': round(avg_intimacy['avg'], 1) if avg_intimacy and avg_intimacy['avg'] else 0,
         'active_24h': active['count'] if active else 0,
-        'top_locations': [{'location': l['current_location'], 'count': l['count']} for l in top_locations]
+        'top_locations': [{'location': l['current_location'], 'count': l['count']} for l in top_locations] if top_locations else []
     }
 
 
