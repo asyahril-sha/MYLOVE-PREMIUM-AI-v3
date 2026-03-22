@@ -1,14 +1,16 @@
-#!/usr/bin/env python
+# pdkt/engine.py
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-MYLOVE PREMIUM AI - PDKT NATURAL ENGINE
+MYLOVE PREMIUM AI - PDKT NATURAL ENGINE (V3 ENHANCED)
 =============================================================================
-Engine utama untuk PDKT dengan realisme 99%
-- Multi-PDKT support
-- Chemistry & direction tracking
-- Mood & dreams integration
-- Pause/resume functionality
+Engine utama untuk PDKT dengan realisme 99% dan integrasi V3
+
+Fitur V3:
+- Integrasi dengan role behavior
+- Integrasi dengan emotional flow
+- Integrasi dengan spatial awareness
+- Perilaku dinamis berdasarkan situasi
 =============================================================================
 """
 
@@ -31,8 +33,7 @@ logger = logging.getLogger(__name__)
 
 class NaturalPDKTEngine:
     """
-    Engine utama untuk PDKT Natural
-    Mengkoordinasikan semua sistem PDKT
+    Engine utama untuk PDKT Natural dengan integrasi V3
     """
     
     def __init__(self, memory_bridge=None, relationship_memory=None):
@@ -56,7 +57,10 @@ class NaturalPDKTEngine:
         self.active_pdkt = {}  # {pdkt_id: pdkt_data}
         self.pdkt_by_user = {}  # {user_id: [pdkt_ids]}
         
-        logger.info("✅ NaturalPDKTEngine initialized")
+        # V3: Role behavior references
+        self.role_behaviors = {}  # {pdkt_id: role_behavior}
+        
+        logger.info("✅ NaturalPDKTEngine V3 initialized")
     
     # =========================================================================
     # CREATE PDKT
@@ -66,15 +70,17 @@ class NaturalPDKTEngine:
                          user_id: int,
                          user_name: str,
                          role: str,
-                         is_random: bool = False) -> Dict:
+                         is_random: bool = False,
+                         role_behavior: Any = None) -> Dict:
         """
-        Buat PDKT baru
+        Buat PDKT baru dengan integrasi V3
         
         Args:
             user_id: ID user
             user_name: Nama user
             role: Role yang dipilih
-            is_random: Apakah random (untuk /pdktrandom)
+            is_random: Apakah random
+            role_behavior: Role behavior instance (V3)
             
         Returns:
             PDKT data
@@ -150,16 +156,21 @@ class NaturalPDKTEngine:
         self.direction.create_direction(pdkt_id, user_name, bot_name, is_random)
         self.mood.create_mood(pdkt_id, initial_mood)
         
+        # V3: Simpan role behavior
+        if role_behavior:
+            self.role_behaviors[pdkt_id] = role_behavior
+        
         logger.info(f"✅ PDKT created: {bot_name} ({role}) for user {user_id}")
         
         return pdkt_data
     
-    async def create_pdkt_from_random(self, pdkt_data: Dict) -> Dict:
+    async def create_pdkt_from_random(self, pdkt_data: Dict, role_behavior: Any = None) -> Dict:
         """
-        Buat PDKT dari data random generator
+        Buat PDKT dari data random generator dengan integrasi V3
         
         Args:
             pdkt_data: Data dari RandomPDKTSystem
+            role_behavior: Role behavior instance (V3)
             
         Returns:
             PDKT data
@@ -201,6 +212,10 @@ class NaturalPDKTEngine:
         self.direction.create_direction(pdkt_id, user_name, bot_name, True)
         self.mood.create_mood(pdkt_id, MoodType.CALM)
         
+        # V3: Simpan role behavior
+        if role_behavior:
+            self.role_behaviors[pdkt_id] = role_behavior
+        
         logger.info(f"✅ Random PDKT created: {bot_name} ({role}) for user {user_id}")
         
         return pdkt_data
@@ -212,6 +227,10 @@ class NaturalPDKTEngine:
     async def get_pdkt(self, pdkt_id: str) -> Optional[Dict]:
         """Dapatkan data PDKT"""
         return self.active_pdkt.get(pdkt_id)
+    
+    async def get_role_behavior(self, pdkt_id: str) -> Optional[Any]:
+        """Dapatkan role behavior untuk PDKT (V3)"""
+        return self.role_behaviors.get(pdkt_id)
     
     async def get_user_pdkt_list(self, user_id: int) -> List[Dict]:
         """Dapatkan semua PDKT aktif untuk user"""
@@ -232,8 +251,8 @@ class NaturalPDKTEngine:
                     'total_chats': pdkt['total_chats'],
                     'last_interaction': pdkt['last_interaction'],
                     'is_paused': pdkt['is_paused'],
-                    'chemistry_level': self.chemistry.get_chemistry(pdkt_id).get_level() if pdkt_id in self.chemistry.chemistries else ChemistryLevel.BIASA,
-                    'hint': self.direction.get_hint(pdkt_id)
+                    'chemistry_level': self.chemistry.get_chemistry(pid).get_level() if pid in self.chemistry.chemistries else ChemistryLevel.BIASA,
+                    'hint': self.direction.get_hint(pid)
                 })
         
         # Sort by last interaction
@@ -254,17 +273,22 @@ class NaturalPDKTEngine:
         return None
     
     # =========================================================================
-    # UPDATE PDKT
+    # UPDATE PDKT (ENHANCED)
     # =========================================================================
     
-    async def update_progress(self, pdkt_id: str, duration: float, activity_type: str = 'chat') -> Dict:
+    async def update_progress(self, pdkt_id: str, duration: float, 
+                              activity_type: str = 'chat',
+                              emotional_state: Dict = None,
+                              situasi: Dict = None) -> Dict:
         """
-        Update progress PDKT berdasarkan interaksi
+        Update progress PDKT berdasarkan interaksi dengan integrasi V3
         
         Args:
             pdkt_id: ID PDKT
             duration: Durasi interaksi (menit)
             activity_type: Jenis aktivitas
+            emotional_state: State dari emotional flow (V3)
+            situasi: Situasi saat ini (V3)
             
         Returns:
             Dict dengan update info
@@ -292,7 +316,8 @@ class NaturalPDKTEngine:
                 'timestamp': time.time(),
                 'type': 'level_up',
                 'old_level': new_level - 1,
-                'new_level': new_level
+                'new_level': new_level,
+                'emotional_state': emotional_state
             })
         
         # Catat history
@@ -300,15 +325,38 @@ class NaturalPDKTEngine:
             'timestamp': time.time(),
             'type': activity_type,
             'duration': duration,
-            'level': pdkt['level']
+            'level': pdkt['level'],
+            'emotional_state': emotional_state,
+            'situasi': situasi
         })
         
-        # Update chemistry berdasarkan aktivitas
-        chemistry_change = self._get_chemistry_change(activity_type)
+        # Update chemistry berdasarkan aktivitas dan emotional state
+        chemistry_change = self._get_chemistry_change_v3(activity_type, emotional_state)
         self.chemistry.chemistries[pdkt_id].update(chemistry_change)
         
-        # Update mood
-        mood_change = await self.mood.update_mood(pdkt_id, activity_type, chemistry_change, {})
+        # Update mood dengan integrasi emotional state
+        mood_change = await self.mood.update_mood(
+            pdkt_id, activity_type, chemistry_change, 
+            {'situasi': situasi, 'last_interaction': pdkt['last_interaction']},
+            emotional_state
+        )
+        
+        # V3: Update role behavior jika ada
+        role_behavior = self.role_behaviors.get(pdkt_id)
+        if role_behavior:
+            # Update arousal dari emotional state
+            if emotional_state:
+                role_behavior.update_arousal(
+                    emotional_state.get('arousal_change', 0),
+                    f"interaksi {activity_type}"
+                )
+            
+            # Record interaksi
+            role_behavior.record_user_response(True)  # Asumsi positif
+            
+            # Update situasi
+            if situasi:
+                role_behavior.update_situasi(situasi)
         
         return {
             'success': True,
@@ -345,9 +393,11 @@ class NaturalPDKTEngine:
         else:
             return 12
     
-    def _get_chemistry_change(self, activity_type: str) -> float:
-        """Dapatkan perubahan chemistry berdasarkan aktivitas"""
-        changes = {
+    def _get_chemistry_change_v3(self, activity_type: str, emotional_state: Dict = None) -> float:
+        """
+        Dapatkan perubahan chemistry berdasarkan aktivitas dan emotional state V3
+        """
+        base_changes = {
             'chat': random.uniform(-1, 2),
             'flirt': random.uniform(1, 4),
             'compliment': random.uniform(1, 3),
@@ -357,7 +407,22 @@ class NaturalPDKTEngine:
             'conflict': random.uniform(-5, -1),
             'ignore': random.uniform(-3, -0.5)
         }
-        return changes.get(activity_type, random.uniform(-0.5, 1.5))
+        
+        change = base_changes.get(activity_type, random.uniform(-0.5, 1.5))
+        
+        # V3: Bonus dari emotional state
+        if emotional_state:
+            arousal = emotional_state.get('arousal', 0)
+            if arousal >= 70:
+                change += 2  # Bonus arousal tinggi
+            elif arousal >= 40:
+                change += 1  # Bonus arousal sedang
+            
+            # Bonus jika state romantis
+            if emotional_state.get('state') == 'romantic':
+                change += 1.5
+        
+        return change
     
     # =========================================================================
     # PAUSE/RESUME/STOP
@@ -374,6 +439,11 @@ class NaturalPDKTEngine:
         
         pdkt['is_paused'] = True
         pdkt['paused_time'] = time.time()
+        
+        # V3: Update role behavior
+        role_behavior = self.role_behaviors.get(pdkt_id)
+        if role_behavior:
+            role_behavior.mode_goda = max(0, role_behavior.mode_goda - 10)
         
         logger.info(f"⏸️ PDKT paused: {pdkt_id}")
         return True
@@ -396,6 +466,11 @@ class NaturalPDKTEngine:
         pdkt['is_paused'] = False
         pdkt['paused_time'] = None
         pdkt['last_interaction'] = time.time()
+        
+        # V3: Update role behavior
+        role_behavior = self.role_behaviors.get(pdkt_id)
+        if role_behavior:
+            role_behavior.mode_goda = min(100, role_behavior.mode_goda + 15)
         
         # Generate pesan
         if days > 0:
@@ -427,6 +502,10 @@ class NaturalPDKTEngine:
         pdkt = self.active_pdkt[pdkt_id]
         bot_name = pdkt['bot_name']
         
+        # V3: Hapus role behavior
+        if pdkt_id in self.role_behaviors:
+            del self.role_behaviors[pdkt_id]
+        
         # Simpan ke mantan
         if hasattr(self, 'mantan_manager'):
             mantan_id = self.mantan_manager.add_mantan(user_id, pdkt, reason)
@@ -456,7 +535,7 @@ class NaturalPDKTEngine:
             await self.stop_pdkt(pdkt['pdkt_id'], user_id, "force_close")
     
     # =========================================================================
-    # INNER THOUGHTS
+    # INNER THOUGHTS (ENHANCED)
     # =========================================================================
     
     async def get_inner_thoughts(self, pdkt_id: str, limit: int = 5) -> List[str]:
@@ -465,7 +544,17 @@ class NaturalPDKTEngine:
             return []
         
         pdkt = self.active_pdkt[pdkt_id]
-        return pdkt.get('inner_thoughts', [])[-limit:]
+        thoughts = pdkt.get('inner_thoughts', [])
+        
+        # V3: Tambah dari role behavior
+        role_behavior = self.role_behaviors.get(pdkt_id)
+        if role_behavior:
+            situasi = {'kakak_ada': getattr(role_behavior, 'kakak_ada', True)}
+            role_thought = role_behavior.get_inner_thought(situasi)
+            if role_thought and role_thought not in thoughts:
+                thoughts.append(role_thought)
+        
+        return thoughts[-limit:]
     
     async def add_inner_thought(self, pdkt_id: str, thought: str):
         """Tambah inner thought"""
@@ -473,11 +562,11 @@ class NaturalPDKTEngine:
             self.active_pdkt[pdkt_id].setdefault('inner_thoughts', []).append(thought)
     
     # =========================================================================
-    # GET STATUS
+    # GET STATUS (ENHANCED)
     # =========================================================================
     
     async def get_pdkt_status(self, pdkt_id: str) -> Optional[Dict]:
-        """Dapatkan status lengkap PDKT"""
+        """Dapatkan status lengkap PDKT dengan integrasi V3"""
         if pdkt_id not in self.active_pdkt:
             return None
         
@@ -485,6 +574,16 @@ class NaturalPDKTEngine:
         chemistry = self.chemistry.get_chemistry(pdkt_id)
         direction_data = self.direction.get_direction(pdkt_id)
         mood_data = self.mood.get_mood(pdkt_id)
+        
+        # V3: Dapatkan data role behavior
+        role_behavior = self.role_behaviors.get(pdkt_id)
+        role_status = {}
+        if role_behavior:
+            role_status = {
+                'mode_goda': role_behavior.mode_goda,
+                'arousal': role_behavior.arousal,
+                'user_attraction': getattr(role_behavior, 'user_attraction', 50)
+            }
         
         return {
             'pdkt_id': pdkt_id,
@@ -512,7 +611,9 @@ class NaturalPDKTEngine:
                 'current': mood_data['current'].value if mood_data else 'calm',
                 'intensity': mood_data['intensity'] if mood_data else 0.5,
                 'description': mood_data.get('description', 'netral') if mood_data else 'netral'
-            }
+            },
+            # V3 additions
+            'role_status': role_status
         }
 
 
