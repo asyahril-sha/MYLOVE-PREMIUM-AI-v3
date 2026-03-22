@@ -5,7 +5,8 @@
 MYLOVE PREMIUM AI - DATABASE REPOSITORY
 =============================================================================
 Repository pattern untuk semua operasi database
-Menggabungkan semua method V1 dan V2
+Menggabungkan semua method V1 dan V2 dengan state persistence lengkap
+=============================================================================
 """
 
 import time
@@ -21,7 +22,8 @@ from .models import (
     ThreesomeSession, ThreesomeParticipant,
     RelationshipStatus, PDKTStatus, PDKTDirection, ChemistryLevel,
     MoodType, MemoryType, MilestoneType, SessionStatus,
-    FWBStatus, HTSStatus, MantanStatus, BackupType, BackupStatus, PreferenceType
+    FWBStatus, HTSStatus, MantanStatus, BackupType, BackupStatus, PreferenceType,
+    UserSession
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +32,7 @@ logger = logging.getLogger(__name__)
 class Repository:
     """
     Repository untuk semua operasi database
-    Menggabungkan method dari V1 dan V2
+    Menggabungkan method dari V1 dan V2 dengan state persistence
     """
     
     def __init__(self):
@@ -917,6 +919,427 @@ class Repository:
         return [Backup.from_dict(r) for r in results]
     
     # =========================================================================
+    # USER SESSION PERMANEN (UNTUK MEMORY PERSISTENT) - FULL IMPLEMENTATION
+    # =========================================================================
+    
+    async def save_user_session_state(self, user_id: int, session_data: Dict[str, Any]):
+        """
+        Simpan state session user ke database (permanen) dengan semua field
+        
+        Args:
+            user_id: ID Telegram user
+            session_data: Data session lengkap
+        """
+        db = await self._get_db()
+        
+        # Cek apakah sudah ada
+        existing = await db.fetch_one(
+            "SELECT * FROM user_sessions WHERE user_id = ?",
+            (user_id,)
+        )
+        
+        now = time.time()
+        
+        # Siapkan data dengan default values
+        session_id = session_data.get('session_id')
+        role = session_data.get('role')
+        bot_name = session_data.get('bot_name')
+        rel_type = session_data.get('rel_type')
+        instance_id = session_data.get('instance_id')
+        intimacy_level = session_data.get('intimacy_level', 1)
+        total_chats = session_data.get('total_chats', 0)
+        
+        # State fisik
+        current_location = session_data.get('current_location', 'ruang tamu')
+        current_clothing = session_data.get('current_clothing', 'pakaian biasa')
+        current_position = session_data.get('current_position', 'santai')
+        current_activity = session_data.get('current_activity', '')
+        
+        # Situasi
+        kakak_status = session_data.get('kakak_status', 'ada')
+        suami_status = session_data.get('suami_status', 'ada')
+        kantor_sepi = 1 if session_data.get('kantor_sepi', False) else 0
+        sedang_berdua = 1 if session_data.get('sedang_berdua', False) else 0
+        
+        # Emosi & Arousal
+        current_emotion = session_data.get('current_emotion', 'calm')
+        arousal_level = session_data.get('arousal_level', 0)
+        emotional_history = json.dumps(session_data.get('emotional_history', []))
+        
+        # Kondisi fisik
+        physical_energy = session_data.get('physical_energy', 80)
+        physical_hunger = session_data.get('physical_hunger', 30)
+        physical_thirst = session_data.get('physical_thirst', 30)
+        
+        # Role behavior state
+        role_arousal = session_data.get('role_arousal', 0)
+        role_mode_goda = session_data.get('role_mode_goda', 0)
+        role_attraction = session_data.get('role_attraction', 50)
+        
+        # Memori episodik
+        scenes = json.dumps(session_data.get('scenes', []))
+        milestones = json.dumps(session_data.get('milestones', []))
+        promises = json.dumps(session_data.get('promises', []))
+        plans = json.dumps(session_data.get('plans', []))
+        
+        # Preferensi user
+        user_preferences = json.dumps(session_data.get('user_preferences', {}))
+        
+        # Metadata
+        current_scene_id = session_data.get('current_scene_id')
+        relationship_status = session_data.get('relationship_status', 'pdkt')
+        
+        if existing:
+            # Update existing
+            await db.execute(
+                """
+                UPDATE user_sessions SET
+                    session_id = ?, role = ?, bot_name = ?, rel_type = ?,
+                    instance_id = ?, intimacy_level = ?, total_chats = ?,
+                    current_location = ?, current_clothing = ?, current_position = ?,
+                    current_activity = ?, kakak_status = ?, suami_status = ?,
+                    kantor_sepi = ?, sedang_berdua = ?, current_emotion = ?,
+                    arousal_level = ?, emotional_history = ?, physical_energy = ?,
+                    physical_hunger = ?, physical_thirst = ?, role_arousal = ?,
+                    role_mode_goda = ?, role_attraction = ?, scenes = ?,
+                    milestones = ?, promises = ?, plans = ?, user_preferences = ?,
+                    current_scene_id = ?, relationship_status = ?, updated_at = ?
+                WHERE user_id = ?
+                """,
+                (
+                    session_id, role, bot_name, rel_type, instance_id,
+                    intimacy_level, total_chats, current_location, current_clothing,
+                    current_position, current_activity, kakak_status, suami_status,
+                    kantor_sepi, sedang_berdua, current_emotion, arousal_level,
+                    emotional_history, physical_energy, physical_hunger, physical_thirst,
+                    role_arousal, role_mode_goda, role_attraction, scenes, milestones,
+                    promises, plans, user_preferences, current_scene_id,
+                    relationship_status, now, user_id
+                )
+            )
+            logger.debug(f"📝 Updated user session state for user {user_id}")
+        else:
+            # Insert new
+            await db.execute(
+                """
+                INSERT INTO user_sessions 
+                (user_id, session_id, role, bot_name, rel_type, instance_id,
+                 intimacy_level, total_chats, current_location, current_clothing,
+                 current_position, current_activity, kakak_status, suami_status,
+                 kantor_sepi, sedang_berdua, current_emotion, arousal_level,
+                 emotional_history, physical_energy, physical_hunger, physical_thirst,
+                 role_arousal, role_mode_goda, role_attraction, scenes, milestones,
+                 promises, plans, user_preferences, current_scene_id,
+                 relationship_status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id, session_id, role, bot_name, rel_type, instance_id,
+                    intimacy_level, total_chats, current_location, current_clothing,
+                    current_position, current_activity, kakak_status, suami_status,
+                    kantor_sepi, sedang_berdua, current_emotion, arousal_level,
+                    emotional_history, physical_energy, physical_hunger, physical_thirst,
+                    role_arousal, role_mode_goda, role_attraction, scenes, milestones,
+                    promises, plans, user_preferences, current_scene_id,
+                    relationship_status, now, now
+                )
+            )
+            logger.info(f"✅ Created user session state for user {user_id}")
+    
+    async def load_user_session_state(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Load state session user dari database dengan semua field
+        
+        Args:
+            user_id: ID Telegram user
+            
+        Returns:
+            Dict session data atau None
+        """
+        db = await self._get_db()
+        
+        result = await db.fetch_one(
+            "SELECT * FROM user_sessions WHERE user_id = ?",
+            (user_id,)
+        )
+        
+        if result:
+            return {
+                # Identitas
+                'session_id': result['session_id'],
+                'role': result['role'],
+                'bot_name': result['bot_name'],
+                'rel_type': result['rel_type'],
+                'instance_id': result['instance_id'],
+                
+                # Progress
+                'intimacy_level': result['intimacy_level'],
+                'total_chats': result['total_chats'],
+                
+                # State fisik
+                'current_location': result['current_location'],
+                'current_clothing': result['current_clothing'],
+                'current_position': result['current_position'],
+                'current_activity': result['current_activity'],
+                
+                # Situasi
+                'kakak_status': result['kakak_status'],
+                'suami_status': result['suami_status'],
+                'kantor_sepi': bool(result['kantor_sepi']),
+                'sedang_berdua': bool(result['sedang_berdua']),
+                
+                # Emosi & Arousal
+                'current_emotion': result['current_emotion'],
+                'arousal_level': result['arousal_level'],
+                'emotional_history': json.loads(result['emotional_history']) if result['emotional_history'] else [],
+                
+                # Kondisi fisik
+                'physical_energy': result['physical_energy'],
+                'physical_hunger': result['physical_hunger'],
+                'physical_thirst': result['physical_thirst'],
+                
+                # Role behavior state
+                'role_arousal': result['role_arousal'],
+                'role_mode_goda': result['role_mode_goda'],
+                'role_attraction': result['role_attraction'],
+                
+                # Memori episodik
+                'scenes': json.loads(result['scenes']) if result['scenes'] else [],
+                'milestones': json.loads(result['milestones']) if result['milestones'] else [],
+                'promises': json.loads(result['promises']) if result['promises'] else [],
+                'plans': json.loads(result['plans']) if result['plans'] else [],
+                
+                # Preferensi user
+                'user_preferences': json.loads(result['user_preferences']) if result['user_preferences'] else {},
+                
+                # Metadata
+                'current_scene_id': result['current_scene_id'],
+                'relationship_status': result['relationship_status'],
+                'created_at': result['created_at'],
+                'updated_at': result['updated_at'],
+            }
+        return None
+    
+    async def delete_user_session_state(self, user_id: int):
+        """
+        Hapus state session user dari database (saat /end)
+        
+        Args:
+            user_id: ID Telegram user
+        """
+        db = await self._get_db()
+        await db.execute(
+            "DELETE FROM user_sessions WHERE user_id = ?",
+            (user_id,)
+        )
+        logger.info(f"🗑️ Deleted user session state for user {user_id}")
+    
+    async def get_all_active_sessions(self) -> List[Dict]:
+        """Dapatkan semua session aktif dari database"""
+        db = await self._get_db()
+        results = await db.fetch_all(
+            "SELECT * FROM user_sessions ORDER BY updated_at DESC"
+        )
+        return [dict(r) for r in results]
+    
+    async def update_user_session_location(self, user_id: int, location: str):
+        """
+        Update lokasi user session tanpa mengubah field lain
+        
+        Args:
+            user_id: ID Telegram user
+            location: Lokasi baru
+        """
+        db = await self._get_db()
+        
+        now = time.time()
+        
+        await db.execute(
+            """
+            UPDATE user_sessions 
+            SET current_location = ?, updated_at = ?
+            WHERE user_id = ?
+            """,
+            (location, now, user_id)
+        )
+        
+        logger.debug(f"📍 Updated location for user {user_id}: {location}")
+    
+    async def update_user_session_clothing(self, user_id: int, clothing: str, reason: str = "ganti baju"):
+        """
+        Update pakaian user session tanpa mengubah field lain
+        
+        Args:
+            user_id: ID Telegram user
+            clothing: Pakaian baru
+            reason: Alasan ganti baju
+        """
+        db = await self._get_db()
+        
+        now = time.time()
+        
+        await db.execute(
+            """
+            UPDATE user_sessions 
+            SET current_clothing = ?, updated_at = ?
+            WHERE user_id = ?
+            """,
+            (clothing, now, user_id)
+        )
+        
+        logger.debug(f"👗 Updated clothing for user {user_id}: {clothing} ({reason})")
+    
+    async def update_user_session_emotion(self, user_id: int, emotion: str, arousal: int = None):
+        """
+        Update emosi user session tanpa mengubah field lain
+        
+        Args:
+            user_id: ID Telegram user
+            emotion: Emosi baru
+            arousal: Level arousal (opsional)
+        """
+        db = await self._get_db()
+        
+        now = time.time()
+        
+        if arousal is not None:
+            await db.execute(
+                """
+                UPDATE user_sessions 
+                SET current_emotion = ?, arousal_level = ?, updated_at = ?
+                WHERE user_id = ?
+                """,
+                (emotion, arousal, now, user_id)
+            )
+        else:
+            await db.execute(
+                """
+                UPDATE user_sessions 
+                SET current_emotion = ?, updated_at = ?
+                WHERE user_id = ?
+                """,
+                (emotion, now, user_id)
+            )
+        
+        logger.debug(f"🎭 Updated emotion for user {user_id}: {emotion} (arousal: {arousal})")
+    
+    async def add_user_session_milestone(self, user_id: int, milestone: Dict):
+        """
+        Tambah milestone ke user session
+        
+        Args:
+            user_id: ID Telegram user
+            milestone: Data milestone (type, description, timestamp, dll)
+        """
+        db = await self._get_db()
+        
+        # Ambil milestones existing
+        result = await db.fetch_one(
+            "SELECT milestones FROM user_sessions WHERE user_id = ?",
+            (user_id,)
+        )
+        
+        if result:
+            milestones = json.loads(result['milestones']) if result['milestones'] else []
+        else:
+            milestones = []
+        
+        # Tambah milestone baru
+        milestone['added_at'] = time.time()
+        milestones.append(milestone)
+        
+        # Simpan hanya 50 milestone terakhir
+        if len(milestones) > 50:
+            milestones = milestones[-50:]
+        
+        now = time.time()
+        
+        await db.execute(
+            """
+            UPDATE user_sessions 
+            SET milestones = ?, updated_at = ?
+            WHERE user_id = ?
+            """,
+            (json.dumps(milestones), now, user_id)
+        )
+        
+        logger.info(f"🏆 Added milestone for user {user_id}: {milestone.get('type', 'unknown')}")
+    
+    async def get_user_session_summary(self, user_id: int) -> Optional[Dict]:
+        """
+        Dapatkan ringkasan session user untuk ditampilkan
+        
+        Args:
+            user_id: ID Telegram user
+            
+        Returns:
+            Dict ringkasan session
+        """
+        db = await self._get_db()
+        
+        result = await db.fetch_one(
+            """
+            SELECT 
+                session_id, role, bot_name, intimacy_level, total_chats,
+                current_location, current_clothing, current_emotion, arousal_level,
+                kakak_status, suami_status, sedang_berdua, updated_at
+            FROM user_sessions 
+            WHERE user_id = ?
+            """,
+            (user_id,)
+        )
+        
+        if not result:
+            return None
+        
+        # Format waktu
+        updated_at = result['updated_at']
+        if updated_at:
+            diff = time.time() - updated_at
+            if diff < 60:
+                time_ago = "baru saja"
+            elif diff < 3600:
+                time_ago = f"{int(diff/60)} menit lalu"
+            elif diff < 86400:
+                time_ago = f"{int(diff/3600)} jam lalu"
+            else:
+                time_ago = f"{int(diff/86400)} hari lalu"
+        else:
+            time_ago = "belum diketahui"
+        
+        # Situasi text
+        situasi_text = ""
+        if result['kakak_status'] == 'tidak_ada':
+            situasi_text = "Kakak tidak ada, berduaan"
+        elif result['kakak_status'] == 'tidur':
+            situasi_text = "Kakak tidur"
+        elif result['sedang_berdua']:
+            situasi_text = "Sedang berduaan"
+        
+        # Emoji untuk emotion
+        emotion_emoji = {
+            'netral': '😐', 'horny': '🔥', 'climax': '💦', 'lemas': '😴',
+            'penasaran': '🤔', 'tertarik': '😊', 'deg_degan': '💓',
+            'gugup': '😖', 'berani': '😏'
+        }.get(result['current_emotion'], '😐')
+        
+        return {
+            'session_id': result['session_id'],
+            'role': result['role'],
+            'bot_name': result['bot_name'],
+            'intimacy_level': result['intimacy_level'],
+            'total_chats': result['total_chats'],
+            'current_location': result['current_location'],
+            'current_clothing': result['current_clothing'],
+            'current_emotion': result['current_emotion'],
+            'emotion_emoji': emotion_emoji,
+            'arousal_level': result['arousal_level'],
+            'situasi_text': situasi_text,
+            'last_active': time_ago,
+            'updated_at': updated_at
+        }
+    
+    # =========================================================================
     # UTILITY METHODS
     # =========================================================================
     
@@ -997,140 +1420,6 @@ class Repository:
         """Execute query"""
         db = await self._get_db()
         return await db.execute(query, params)
-
-    # =========================================================================
-    # USER SESSION PERMANEN (UNTUK MEMORY PERSISTENT)
-    # =========================================================================
-    
-    async def save_user_session_state(self, user_id: int, session_data: Dict[str, Any]):
-        """
-        Simpan state session user ke database (permanen)
-        
-        Args:
-            user_id: ID Telegram user
-            session_data: Data session (role, bot_name, level, dll)
-        """
-        db = await self._get_db()
-        
-        # Cek apakah sudah ada
-        existing = await db.fetch_one(
-            "SELECT * FROM user_sessions WHERE user_id = ?",
-            (user_id,)
-        )
-        
-        now = time.time()
-        
-        if existing:
-            # Update existing
-            await db.execute(
-                """
-                UPDATE user_sessions SET
-                    session_id = ?, role = ?, bot_name = ?, rel_type = ?,
-                    instance_id = ?, intimacy_level = ?, total_chats = ?,
-                    current_location = ?, current_clothing = ?, current_position = ?,
-                    relationship_status = ?, updated_at = ?
-                WHERE user_id = ?
-                """,
-                (
-                    session_data.get('session_id'),
-                    session_data.get('role'),
-                    session_data.get('bot_name'),
-                    session_data.get('rel_type'),
-                    session_data.get('instance_id'),
-                    session_data.get('intimacy_level', 1),
-                    session_data.get('total_chats', 0),
-                    session_data.get('current_location', 'ruang tamu'),
-                    session_data.get('current_clothing', 'pakaian biasa'),
-                    session_data.get('current_position', 'santai'),
-                    session_data.get('relationship_status', 'pdkt'),
-                    now,
-                    user_id
-                )
-            )
-            logger.debug(f"📝 Updated user session state for user {user_id}")
-        else:
-            # Insert new
-            await db.execute(
-                """
-                INSERT INTO user_sessions 
-                (user_id, session_id, role, bot_name, rel_type, instance_id,
-                 intimacy_level, total_chats, current_location, current_clothing,
-                 current_position, relationship_status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    user_id,
-                    session_data.get('session_id'),
-                    session_data.get('role'),
-                    session_data.get('bot_name'),
-                    session_data.get('rel_type'),
-                    session_data.get('instance_id'),
-                    session_data.get('intimacy_level', 1),
-                    session_data.get('total_chats', 0),
-                    session_data.get('current_location', 'ruang tamu'),
-                    session_data.get('current_clothing', 'pakaian biasa'),
-                    session_data.get('current_position', 'santai'),
-                    session_data.get('relationship_status', 'pdkt'),
-                    now,
-                    now
-                )
-            )
-            logger.info(f"✅ Created user session state for user {user_id}")
-    
-    async def load_user_session_state(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """
-        Load state session user dari database
-        
-        Args:
-            user_id: ID Telegram user
-            
-        Returns:
-            Dict session data atau None
-        """
-        db = await self._get_db()
-        
-        result = await db.fetch_one(
-            "SELECT * FROM user_sessions WHERE user_id = ?",
-            (user_id,)
-        )
-        
-        if result:
-            return {
-                'session_id': result['session_id'],
-                'role': result['role'],
-                'bot_name': result['bot_name'],
-                'rel_type': result['rel_type'],
-                'instance_id': result['instance_id'],
-                'intimacy_level': result['intimacy_level'],
-                'total_chats': result['total_chats'],
-                'current_location': result['current_location'],
-                'current_clothing': result['current_clothing'],
-                'current_position': result['current_position'],
-                'relationship_status': result['relationship_status'],
-            }
-        return None
-    
-    async def delete_user_session_state(self, user_id: int):
-        """
-        Hapus state session user dari database (saat /end)
-        
-        Args:
-            user_id: ID Telegram user
-        """
-        db = await self._get_db()
-        await db.execute(
-            "DELETE FROM user_sessions WHERE user_id = ?",
-            (user_id,)
-        )
-        logger.info(f"🗑️ Deleted user session state for user {user_id}")
-    
-    async def get_all_active_sessions(self) -> List[Dict]:
-        """Dapatkan semua session aktif dari database"""
-        db = await self._get_db()
-        results = await db.fetch_all(
-            "SELECT * FROM user_sessions ORDER BY updated_at DESC"
-        )
-        return [dict(r) for r in results]
 
 
 __all__ = ['Repository']
