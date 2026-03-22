@@ -1,0 +1,27 @@
+# 1. BACKUP DATABASE EXISTING (Opsional tapi disarankan)
+cp data/mylove.db data/mylove.db.backup
+
+# 2. PASTIKAN SEMUA DEPENDENSI TERINSTALL
+pip install -r requirements.txt
+
+# 3. JALANKAN MIGRASI DATABASE (jika ada perubahan)
+python database/migrate.py
+
+# 4. TEST SEMUA UNIT TEST
+python tests/run_all_tests.py
+
+# 5. JALANKAN SIMULASI PERCAKAPAN
+python tests/simulate_conversation.py --role ipar
+
+# 6. START BOT
+python main.py
+
+# 7. TEST COMMAND DI TELEGRAM
+# Kirim pesan ke bot:
+/start
+/pdkt ipar
+/pdktlist
+/status
+/continue
+/tophts
+/hts
