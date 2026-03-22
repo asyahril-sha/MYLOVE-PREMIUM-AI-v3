@@ -29,28 +29,28 @@ class IparBehavior(RoleBehavior):
     """
     
     def __init__(self, user_name: str, bot_name: str):
-    super().__init__("ipar", user_name, bot_name)
+        super().__init__("ipar", user_name, bot_name)
 
-    # ===== HUBUNGAN KELUARGA =====
-    self.kakak_nama = "Nova"  # Nama kakak (istri user)
-    self.kakak_suami = user_name  # User adalah suami kakak
-    self.tinggal_bersama = True  # Tinggal bersama kakak dan user
-    self.rumah_user = True  # Rumah user adalah tempat tinggal
-    
-    # Load konfigurasi
-    self.config = IPAR_CONFIG
-    
-    # Status spesifik Ipar
-    self.kakak_ada = True          # Apakah kakak (istri user) ada di rumah
-    self.di_dalam_kamar = False    # Apakah ipar di dalam kamar
-    self.terakhir_dengar_desahan = None  # Kapan terakhir dengar user dan kakak
-    self.already_escalated_today = False
-    
-    # Database dari config
-    self.pakaian_db = self.config['pakaian']
-    self.aktivitas_db = self.config['aktivitas']
-    self.inner_thoughts_db = self.config['inner_thoughts']
-    self.respon_db = self.config['respon_sentuhan']
+        # ===== HUBUNGAN KELUARGA =====
+        self.kakak_nama = "Nova"  # Nama kakak (istri user)
+        self.kakak_suami = user_name  # User adalah suami kakak
+        self.tinggal_bersama = True  # Tinggal bersama kakak dan user
+        self.rumah_user = True  # Rumah user adalah tempat tinggal
+        
+        # Load konfigurasi
+        self.config = IPAR_CONFIG
+        
+        # Status spesifik Ipar
+        self.kakak_ada = True          # Apakah kakak (istri user) ada di rumah
+        self.di_dalam_kamar = False    # Apakah ipar di dalam kamar
+        self.terakhir_dengar_desahan = None  # Kapan terakhir dengar user dan kakak
+        self.already_escalated_today = False
+        
+        # Database dari config
+        self.pakaian_db = self.config['pakaian']
+        self.aktivitas_db = self.config['aktivitas']
+        self.inner_thoughts_db = self.config['inner_thoughts']
+        self.respon_db = self.config['respon_sentuhan']
     
     # =========================================================================
     # IMPLEMENTASI METHOD ABSTRACT
@@ -79,6 +79,7 @@ class IparBehavior(RoleBehavior):
         
         # Pilih random dari database
         pakaian = random.choice(self.pakaian_db[key])
+        pakaian += tambahan
         
         # Tambah hint menggoda jika kakak tidak ada dan di luar kamar
         if not kakak_ada and not di_dalam_kamar and self.mode_goda > 50:
