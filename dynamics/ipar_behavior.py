@@ -17,6 +17,7 @@ Karakteristik:
 
 import random
 import time
+import IPAR_CONFIG
 from typing import Dict, List, Optional, Any
 
 from .role_behavior import RoleBehavior
