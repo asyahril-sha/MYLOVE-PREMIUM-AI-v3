@@ -6,6 +6,7 @@ MYLOVE PREMIUM AI - DATABASE MODELS
 =============================================================================
 Data models untuk semua entitas dengan Pydantic validation
 Menggabungkan semua model dari V1 dan V2
+=============================================================================
 """
 
 import time
@@ -957,6 +958,7 @@ class Relationship(BaseModel):
             history=json.loads(data.get('history', '[]'))
         )
         
+
 # =============================================================================
 # USER SESSION PERMANEN (UNTUK MEMORY PERSISTENT)
 # =============================================================================
@@ -976,8 +978,42 @@ class UserSession(BaseModel):
     current_clothing: str = "pakaian biasa"
     current_position: str = "santai"
     relationship_status: str = "pdkt"
+    
+    # ===== STATE YANG HARUS DIINGAT UNTUK KONSISTENSI =====
+    current_activity: str = ""                     # Aktivitas saat ini (nonton, masak, dll)
+    kakak_status: str = "ada"                      # "ada", "tidak_ada", "tidur"
+    suami_status: str = "ada"                      # "ada", "tidak_ada", "tidur"
+    kantor_sepi: bool = False                      # Apakah kantor sedang sepi
+    sedang_berdua: bool = False                    # Apakah sedang berduaan dengan user
+    
+    # Emosi & Arousal
+    current_emotion: str = "calm"                  # Netral, horny, climax, dll
+    arousal_level: int = 0                         # 0-100
+    emotional_history: List[Dict] = Field(default_factory=list)
+    
+    # Kondisi Fisik
+    physical_energy: int = 80
+    physical_hunger: int = 30
+    physical_thirst: int = 30
+    
+    # Role Behavior State
+    role_arousal: int = 0
+    role_mode_goda: int = 0
+    role_attraction: int = 50
+    
+    # Memori Episodik
+    scenes: List[Dict] = Field(default_factory=list)          # Scene yang sudah terjadi
+    milestones: List[Dict] = Field(default_factory=list)      # Momen penting
+    promises: List[Dict] = Field(default_factory=list)        # Janji yang dibuat
+    plans: List[Dict] = Field(default_factory=list)           # Rencana yang disepakati
+    
+    # Preferensi User
+    user_preferences: Dict[str, Any] = Field(default_factory=dict)
+    
+    # Metadata
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
+    current_scene_id: Optional[str] = None
     
     def to_dict(self) -> Dict:
         return {
@@ -992,9 +1028,29 @@ class UserSession(BaseModel):
             'current_location': self.current_location,
             'current_clothing': self.current_clothing,
             'current_position': self.current_position,
-            'relationship_status': self.relationship_status,
+            'current_activity': self.current_activity,
+            'kakak_status': self.kakak_status,
+            'suami_status': self.suami_status,
+            'kantor_sepi': 1 if self.kantor_sepi else 0,
+            'sedang_berdua': 1 if self.sedang_berdua else 0,
+            'current_emotion': self.current_emotion,
+            'arousal_level': self.arousal_level,
+            'emotional_history': json.dumps(self.emotional_history),
+            'physical_energy': self.physical_energy,
+            'physical_hunger': self.physical_hunger,
+            'physical_thirst': self.physical_thirst,
+            'role_arousal': self.role_arousal,
+            'role_mode_goda': self.role_mode_goda,
+            'role_attraction': self.role_attraction,
+            'scenes': json.dumps(self.scenes),
+            'milestones': json.dumps(self.milestones),
+            'promises': json.dumps(self.promises),
+            'plans': json.dumps(self.plans),
+            'user_preferences': json.dumps(self.user_preferences),
+            'current_scene_id': self.current_scene_id,
             'created_at': self.created_at,
-            'updated_at': self.updated_at
+            'updated_at': self.updated_at,
+            'relationship_status': self.relationship_status,
         }
     
     @classmethod
@@ -1012,10 +1068,31 @@ class UserSession(BaseModel):
             current_location=data.get('current_location', 'ruang tamu'),
             current_clothing=data.get('current_clothing', 'pakaian biasa'),
             current_position=data.get('current_position', 'santai'),
-            relationship_status=data.get('relationship_status', 'pdkt'),
+            current_activity=data.get('current_activity', ''),
+            kakak_status=data.get('kakak_status', 'ada'),
+            suami_status=data.get('suami_status', 'ada'),
+            kantor_sepi=bool(data.get('kantor_sepi', 0)),
+            sedang_berdua=bool(data.get('sedang_berdua', 0)),
+            current_emotion=data.get('current_emotion', 'calm'),
+            arousal_level=data.get('arousal_level', 0),
+            emotional_history=json.loads(data.get('emotional_history', '[]')),
+            physical_energy=data.get('physical_energy', 80),
+            physical_hunger=data.get('physical_hunger', 30),
+            physical_thirst=data.get('physical_thirst', 30),
+            role_arousal=data.get('role_arousal', 0),
+            role_mode_goda=data.get('role_mode_goda', 0),
+            role_attraction=data.get('role_attraction', 50),
+            scenes=json.loads(data.get('scenes', '[]')),
+            milestones=json.loads(data.get('milestones', '[]')),
+            promises=json.loads(data.get('promises', '[]')),
+            plans=json.loads(data.get('plans', '[]')),
+            user_preferences=json.loads(data.get('user_preferences', '{}')),
+            current_scene_id=data.get('current_scene_id'),
             created_at=data.get('created_at', time.time()),
-            updated_at=data.get('updated_at', time.time())
+            updated_at=data.get('updated_at', time.time()),
+            relationship_status=data.get('relationship_status', 'pdkt'),
         )
+
 
 # =============================================================================
 # EXPORT ALL MODELS
