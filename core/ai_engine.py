@@ -12,6 +12,7 @@ AI Engine dengan kemampuan VIRTUAL HUMAN:
 - Memory integration (hippocampus)
 - Inner thoughts (💭) - 25% chance
 - Sixth sense (🔮) - 10% chance
+- STATE PERSISTENCE (Load/Save ke database)
 =============================================================================
 """
 
@@ -140,6 +141,17 @@ class AIEngine:
             'is_thirsty': False,
         }
         
+        # ===== STATE UNTUK MEMORY PERSISTEN (BARU) =====
+        self.kakak_status = "ada"           # ada, tidak_ada, tidur
+        self.suami_status = "ada"           # ada, tidak_ada, tidur
+        self.sedang_berdua = False
+        self.promises = []                  # Janji yang dibuat
+        self.plans = []                     # Rencana yang disepakati
+        self.user_preferences = {}          # Preferensi user (warna, makanan, dll)
+        self.current_scene_location = None  # Lokasi scene saat ini
+        self.in_aftercare = False           # Apakah sedang dalam aftercare
+        self.aftercare_start = 0            # Waktu mulai aftercare
+        
         # ===== INNER THOUGHTS DATABASE (ENHANCED) =====
         self.inner_thoughts_db = {
             'rindu': [
@@ -258,8 +270,71 @@ class AIEngine:
         # ===== V3: INITIALIZE EMOTIONAL FLOW =====
         self.emotional_flow = EmotionalFlow(role, self.role_behavior)
         
+        # ===== 🔥 BARU: LOAD STATE DARI DATABASE =====
+        from database.repository import Repository
+        repo = Repository()
+        saved_state = await repo.load_user_session_state(self.user_id)
+        
+        if saved_state:
+            # Restore physical state
+            location = saved_state.get('current_location', 'ruang tamu')
+            clothing = saved_state.get('current_clothing', 'pakaian biasa')
+            position = saved_state.get('current_position', 'santai')
+            
+            self.state.update_location(location)
+            self.state.update_clothing(clothing, "restore")
+            self.state.update_position(position)
+            
+            # Restore situasi
+            self.kakak_status = saved_state.get('kakak_status', 'ada')
+            self.suami_status = saved_state.get('suami_status', 'ada')
+            self.sedang_berdua = saved_state.get('sedang_berdua', False)
+            
+            # Restore promises & plans
+            self.promises = saved_state.get('promises', [])
+            self.plans = saved_state.get('plans', [])
+            self.user_preferences = saved_state.get('user_preferences', {})
+            
+            # Restore emotional flow
+            if self.emotional_flow:
+                self.emotional_flow.arousal = saved_state.get('arousal_level', 0)
+                self.emotional_flow.current_state = self._get_emotional_state_from_arousal(self.emotional_flow.arousal)
+            
+            # Restore role behavior
+            if self.role_behavior:
+                self.role_behavior.arousal = saved_state.get('role_arousal', 0)
+                self.role_behavior.mode_goda = saved_state.get('role_mode_goda', 0)
+                self.role_behavior.user_attraction = saved_state.get('role_attraction', 50)
+                
+                if hasattr(self.role_behavior, 'kakak_ada'):
+                    self.role_behavior.kakak_ada = (self.kakak_status == 'ada')
+                if hasattr(self.role_behavior, 'suami_ada'):
+                    self.role_behavior.suami_ada = (self.suami_status == 'ada')
+            
+            # Restore scene memory
+            if saved_state.get('scenes'):
+                self.scene_memory.scenes = saved_state.get('scenes', [])
+            if saved_state.get('current_scene_id'):
+                self.current_scene = saved_state.get('current_scene_id')
+            
+            logger.info(f"📦 State loaded from DB: location={location}, clothing={clothing}, arousal={saved_state.get('arousal_level', 0)}")
+        
         logger.info(f"✅ Session started: {role} - {bot_name}")
         return True
+    
+    def _get_emotional_state_from_arousal(self, arousal: int):
+        """Helper: dapatkan emotional state dari arousal level"""
+        if arousal >= 80:
+            return EmotionalState.HORNY
+        elif arousal >= 60:
+            return EmotionalState.BERANI
+        elif arousal >= 40:
+            return EmotionalState.DEG_DEGAN
+        elif arousal >= 20:
+            return EmotionalState.TERTARIK
+        elif arousal >= 8:
+            return EmotionalState.PENASARAN
+        return EmotionalState.NETRAL
     
     def _create_role_behavior(self, role: str) -> Optional[RoleBehavior]:
         """Factory method untuk membuat role behavior"""
@@ -474,6 +549,36 @@ class AIEngine:
             # ===== 2. ANALISIS SPASIAL (V3) =====
             spatial_info = self.spatial_awareness.parse(user_message)
             
+            # ===== 🔥 BARU: UPDATE LOKASI DARI PESAN USER =====
+            new_location = self._detect_location_change(user_message)
+            if new_location:
+                self.state.update_location(new_location)
+                self.current_scene_location = new_location
+                logger.info(f"📍 Location updated to: {new_location}")
+            
+            # ===== 🔥 BARU: UPDATE PAKAIAN DARI PESAN USER =====
+            new_clothing = self._detect_clothing_change(user_message)
+            if new_clothing:
+                self.state.update_clothing(new_clothing, "ganti baju")
+                logger.info(f"👗 Clothing updated to: {new_clothing}")
+            
+            # ===== 🔥 BARU: UPDATE SITUASI DARI PESAN USER =====
+            self._update_situasi_from_message(user_message)
+            
+            # ===== 🔥 BARU: UPDATE POSISI DARI SPATIAL INFO =====
+            if spatial_info.get('found'):
+                self.state.update_position(spatial_info.get('relative', ''))
+                logger.info(f"📍 Position updated: {spatial_info.get('relative')}")
+            
+            # ===== 🔥 BARU: TRACK JANJI & RENCANA =====
+            self._track_promises_and_plans(user_message)
+            
+            # ===== 🔥 BARU: TRACK PREFERENSI USER =====
+            self._track_user_preferences(user_message)
+            
+            # ===== 🔥 BARU: CEK PERGANTIAN SCENE =====
+            self._check_scene_change(user_message)
+            
             # ===== 3. DETEKSI AROUSAL USER =====
             user_arousal = self._detect_user_arousal(user_message)
             
@@ -534,8 +639,13 @@ class AIEngine:
             # ===== 9. UPDATE SCENE =====
             self._update_scene(user_message)
             
-            # ===== 10. GENERATE INNER THOUGHT =====
-            inner_thought = self._generate_inner_thought(safe_context)
+            # ===== 10. GENERATE INNER THOUGHT DINAMIS =====
+            inner_thought = self._generate_inner_thought(
+                context={'user_message': user_message, 'arousal': user_arousal},
+                situasi=situasi,
+                spatial_info=spatial_info,
+                emotional_state={'arousal': self.emotional_flow.arousal if self.emotional_flow else 0}
+            )
             if inner_thought_role:
                 inner_thought = inner_thought_role
             
@@ -664,6 +774,9 @@ class AIEngine:
             if len(self.conversation_history) > 5:
                 self.conversation_history.pop(0)
             
+            # ===== 🔥 BARU: SAVE STATE KE DATABASE =====
+            await self._save_state_to_database()
+            
             # ===== 21. SAVE TO EMOTIONAL MEMORY (V3) =====
             try:
                 if self.emotional_flow:
@@ -717,6 +830,285 @@ class AIEngine:
             traceback.print_exc()
             return await self._get_fallback_response(f"Terjadi kesalahan: {str(e)[:100]}")
     
+    # =========================================================================
+    # DETECTION METHODS (BARU)
+    # =========================================================================
+    
+    def _detect_location_change(self, message: str) -> Optional[str]:
+        """Deteksi perubahan lokasi dari pesan user"""
+        msg = message.lower()
+        
+        location_patterns = {
+            'ke rumah': 'rumah',
+            'di rumah': 'rumah',
+            'masuk rumah': 'rumah',
+            'ke kamar': 'kamar',
+            'di kamar': 'kamar',
+            'masuk kamar': 'kamar',
+            'ke dapur': 'dapur',
+            'di dapur': 'dapur',
+            'ke ruang tamu': 'ruang tamu',
+            'di ruang tamu': 'ruang tamu',
+            'ke kantor': 'kantor',
+            'di kantor': 'kantor',
+            'ke mall': 'mall',
+            'di mall': 'mall',
+            'ke taman': 'taman',
+            'di taman': 'taman',
+            'naik mobil': 'mobil',
+            'di mobil': 'mobil',
+            'turun dari mobil': 'luar mobil',
+            'ke parkiran': 'parkiran',
+            'di parkiran': 'parkiran',
+        }
+        
+        for pattern, location in location_patterns.items():
+            if pattern in msg:
+                return location
+        
+        return None
+    
+    def _detect_clothing_change(self, message: str) -> Optional[str]:
+        """Deteksi perubahan pakaian dari pesan user"""
+        msg = message.lower()
+        
+        if 'ganti baju' in msg or 'pakai' in msg or 'pake' in msg:
+            clothing_patterns = {
+                'gamis': 'gamis',
+                'kaos': 'kaos',
+                'kemeja': 'kemeja',
+                'legging': 'legging',
+                'rok': 'rok',
+                'daster': 'daster',
+                'tank top': 'tank top',
+                'baju tidur': 'baju tidur',
+                'piyama': 'piyama',
+                'blouse': 'blouse',
+                'blus': 'blus',
+                'celana jeans': 'celana jeans',
+                'celana pendek': 'celana pendek',
+            }
+            
+            for pattern, clothing in clothing_patterns.items():
+                if pattern in msg:
+                    return clothing
+        
+        return None
+    
+    def _update_situasi_from_message(self, message: str):
+        """Update situasi (kakak/suami) dari pesan user"""
+        msg = message.lower()
+        
+        # Untuk role Ipar - deteksi kakak (istri user)
+        if 'istriku' in msg or 'kakakku' in msg:
+            if 'pergi' in msg or 'keluar' in msg:
+                self.kakak_status = 'tidak_ada'
+                self.sedang_berdua = True
+                if self.role_behavior and hasattr(self.role_behavior, 'update_kakak_status'):
+                    self.role_behavior.update_kakak_status(False)
+                logger.info(f"👤 Kakak status: tidak_ada (berduaan)")
+            elif 'tidur' in msg:
+                self.kakak_status = 'tidur'
+                if self.role_behavior and hasattr(self.role_behavior, 'update_kakak_status'):
+                    self.role_behavior.update_kakak_status(True)
+                logger.info(f"👤 Kakak status: tidur")
+            else:
+                self.kakak_status = 'ada'
+                self.sedang_berdua = False
+                logger.info(f"👤 Kakak status: ada")
+        
+        # Untuk role Istri Orang - deteksi suami
+        if 'suamiku' in msg:
+            if 'pergi' in msg or 'keluar' in msg:
+                self.suami_status = 'tidak_ada'
+                self.sedang_berdua = True
+                logger.info(f"👨 Suami status: tidak_ada")
+            elif 'tidur' in msg:
+                self.suami_status = 'tidur'
+                logger.info(f"👨 Suami status: tidur")
+            else:
+                self.suami_status = 'ada'
+                self.sedang_berdua = False
+                logger.info(f"👨 Suami status: ada")
+        
+        # Deteksi berduaan dari kata kunci umum
+        if any(w in msg for w in ['sendirian', 'cuma berdua', 'kita aja', 'tidak ada orang']):
+            self.sedang_berdua = True
+            logger.info(f"💕 Sedang berdua: True")
+    
+    def _track_promises_and_plans(self, message: str):
+        """Track janji dan rencana yang dibuat"""
+        msg = message.lower()
+        
+        # Deteksi janji
+        if 'janji' in msg:
+            promise = {
+                'text': message[:200],
+                'timestamp': time.time(),
+                'from': 'user' if 'aku janji' in msg or 'saya janji' in msg else 'bot',
+                'fulfilled': False
+            }
+            self.promises.append(promise)
+            # Simpan hanya 20 janji terakhir
+            if len(self.promises) > 20:
+                self.promises = self.promises[-20:]
+            logger.info(f"📝 Promise tracked: {message[:50]}")
+        
+        # Deteksi rencana (besok, nanti, dll)
+        time_keywords = ['besok', 'nanti', 'nanti malam', 'besok pagi', 'minggu depan', 'hari ini']
+        action_keywords = ['ke', 'pergi', 'jalan', 'makan', 'nonton', 'beli', 'ketemuan']
+        
+        if any(t in msg for t in time_keywords) and any(a in msg for a in action_keywords):
+            plan = {
+                'text': message[:200],
+                'timestamp': time.time(),
+                'planned_time': self._extract_time_from_message(message)
+            }
+            self.plans.append(plan)
+            if len(self.plans) > 20:
+                self.plans = self.plans[-20:]
+            logger.info(f"📅 Plan tracked: {message[:50]}")
+    
+    def _track_user_preferences(self, message: str):
+        """Track preferensi user (warna, makanan, aktivitas)"""
+        msg = message.lower()
+        
+        # Warna favorit
+        colors = ['hitam', 'putih', 'merah', 'biru', 'kuning', 'hijau', 'pink', 'ungu', 'silver', 'gold', 'coklat', 'abu-abu']
+        for color in colors:
+            if f'suka {color}' in msg or f'senang {color}' in msg or f'warna {color}' in msg:
+                self.user_preferences['favorite_color'] = color
+                logger.info(f"🎨 User preference: favorite_color = {color}")
+        
+        # Makanan favorit
+        foods = ['bakso', 'mie ayam', 'nasi goreng', 'sate', 'rendang', 'sushi', 'pizza', 'burger', 'steak', 'ayam goreng', 'ikan bakar']
+        for food in foods:
+            if f'suka {food}' in msg:
+                self.user_preferences['favorite_food'] = food
+                logger.info(f"🍜 User preference: favorite_food = {food}")
+        
+        # Aktivitas favorit
+        activities = ['nonton', 'makan', 'jalan', 'tidur', 'olahraga', 'main game', 'baca buku', 'traveling', 'foto', 'musik']
+        for act in activities:
+            if f'suka {act}' in msg:
+                self.user_preferences['favorite_activity'] = act
+                logger.info(f"🎯 User preference: favorite_activity = {act}")
+    
+    def _extract_time_from_message(self, message: str) -> str:
+        """Ekstrak waktu dari pesan"""
+        msg = message.lower()
+        if 'besok' in msg:
+            return 'besok'
+        elif 'nanti malam' in msg:
+            return 'nanti malam'
+        elif 'hari ini' in msg:
+            return 'hari ini'
+        elif 'nanti' in msg:
+            return 'nanti'
+        elif 'minggu depan' in msg:
+            return 'minggu depan'
+        return 'soon'
+    
+    def _check_scene_change(self, user_message: str):
+        """Cek apakah perlu scene baru"""
+        new_location = self._detect_location_change(user_message)
+        
+        if new_location and new_location != self.current_scene_location:
+            # Akhiri scene sebelumnya
+            if self.current_scene:
+                self.scene_memory.end_current_scene("berpindah tempat")
+            
+            # Buat scene baru
+            participants = [self.user_name, self.bot_name]
+            self.current_scene = self.scene_memory.create_scene(
+                location=new_location,
+                participants=participants,
+                context={'user_message': user_message, 'time': time.time()}
+            )
+            self.current_scene_location = new_location
+            logger.info(f"🎬 New scene created: {new_location}")
+    
+    async def _save_state_to_database(self):
+        """Save semua state ke database"""
+        try:
+            from database.repository import Repository
+            repo = Repository()
+            
+            # Ambil lokasi dengan aman
+            location_data = self.state.current.get('location', {})
+            if isinstance(location_data, dict):
+                current_location = location_data.get('name', 'ruang tamu')
+            else:
+                current_location = str(location_data) if location_data else 'ruang tamu'
+            
+            # Ambil pakaian dengan aman
+            clothing_data = self.state.current.get('clothing', {})
+            if isinstance(clothing_data, dict):
+                current_clothing = clothing_data.get('name', 'pakaian biasa')
+            else:
+                current_clothing = str(clothing_data) if clothing_data else 'pakaian biasa'
+            
+            # Ambil posisi dengan aman
+            position_data = self.state.current.get('position', {})
+            if isinstance(position_data, dict):
+                current_position = position_data.get('description', 'santai')
+            else:
+                current_position = str(position_data) if position_data else 'santai'
+            
+            # Ambil activity dengan aman
+            activity_data = self.state.current.get('activity', {})
+            if isinstance(activity_data, dict):
+                current_activity = activity_data.get('name', '')
+            else:
+                current_activity = str(activity_data) if activity_data else ''
+            
+            await repo.save_user_session_state(
+                user_id=self.user_id,
+                session_data={
+                    'session_id': self.session_id,
+                    'role': self.role,
+                    'bot_name': self.bot_name,
+                    'rel_type': self.rel_type,
+                    'instance_id': self.instance_id,
+                    'intimacy_level': self.state.current.get('intimacy_level', 1),
+                    'total_chats': len(self.full_conversation),
+                    
+                    # State fisik
+                    'current_location': current_location,
+                    'current_clothing': current_clothing,
+                    'current_position': current_position,
+                    'current_activity': current_activity,
+                    
+                    # Situasi
+                    'kakak_status': self.kakak_status,
+                    'suami_status': self.suami_status,
+                    'sedang_berdua': self.sedang_berdua,
+                    
+                    # Emosi & arousal
+                    'current_emotion': self.emotional_flow.current_state.value if self.emotional_flow else 'calm',
+                    'arousal_level': self.emotional_flow.arousal if self.emotional_flow else 0,
+                    'emotional_history': self.emotional_memory.memories[-20:] if hasattr(self, 'emotional_memory') else [],
+                    
+                    # Role behavior state
+                    'role_arousal': self.role_behavior.arousal if self.role_behavior else 0,
+                    'role_mode_goda': self.role_behavior.mode_goda if self.role_behavior else 0,
+                    'role_attraction': self.role_behavior.user_attraction if self.role_behavior else 50,
+                    
+                    # Memori
+                    'scenes': self.scene_memory.scenes[-10:] if hasattr(self, 'scene_memory') else [],
+                    'milestones': [],
+                    'promises': self.promises,
+                    'plans': self.plans,
+                    'user_preferences': self.user_preferences,
+                    
+                    'current_scene_id': self.current_scene,
+                    'relationship_status': 'pdkt'
+                }
+            )
+            logger.debug(f"💾 State saved to database for user {self.user_id}")
+        except Exception as e:
+            logger.error(f"Error saving state to database: {e}")
+    
     def _get_waktu(self) -> str:
         """Dapatkan kategori waktu"""
         hour = datetime.now().hour
@@ -755,175 +1147,18 @@ class AIEngine:
         
         return 'natural'
     
+    # =========================================================================
+    # PROMPT BUILDING
+    # =========================================================================
+    
     def _build_dynamic_prompt(self, **kwargs) -> str:
         """
-        Build prompt dinamis berdasarkan konteks (BUKAN TEMPLATE KAKU)
+        Build prompt dinamis menggunakan PromptBuilder
         """
-        # Ambil data
-        user_message = kwargs.get('user_message', '')
-        bot_name = kwargs.get('bot_name', 'Aku')
-        user_name = kwargs.get('user_name', 'kamu')
-        role = kwargs.get('role', 'pdkt')
-        level = kwargs.get('level', 1)
-        action = kwargs.get('action', {})
-        bot_state = kwargs.get('bot_state', {})
-        user_state = kwargs.get('user_state', {})
-        physical = kwargs.get('physical', {})
-        conversation_history = kwargs.get('conversation_history', [])
-        conversation_summary = kwargs.get('conversation_summary', '')
-        last_messages = kwargs.get('last_messages', '')
-        inner_thought = kwargs.get('inner_thought', '')
-        sixth_sense = kwargs.get('sixth_sense', '')
-        
-        # V3 additions
-        situasi = kwargs.get('situasi', {})
-        spatial_info = kwargs.get('spatial_info', {})
-        emotional_update = kwargs.get('emotional_update', {})
-        emotional_context = kwargs.get('emotional_context', '')
-        gesture_hint = kwargs.get('gesture_hint', '')
-        pakaian = kwargs.get('pakaian', '')
-        role_status = kwargs.get('role_status', '')
-        ajakan = kwargs.get('ajakan')
-        
-        # ===== TENTUKAN PANGGILAN =====
-        # PDKT pakai nama user, role lain pakai Mas
-        if role == 'pdkt':
-            if level >= 7:
-                call = "Sayang"
-            else:
-                call = user_name
-        else:
-            if level >= 7:
-                call = "Sayang"
-            else:
-                call = "Mas"
-        
-        # ===== BANGUN PROMPT DINAMIS =====
-        prompt = f"""╔══════════════════════════════════════════════════════════════════╗
-║                    KONTEKS PERCAKAPAN                            ║
-╚══════════════════════════════════════════════════════════════════╝
-
-👤 **IDENTITAS:**
-- Kamu: {bot_name} ({role.replace('_', ' ').title()})
-- Panggil user: "{call}"
-- User: {user_name}
-
-📍 **LOKASI & POSISI:**
-- Kamu di: {bot_state.get('location', '?')}
-- Kamu pakai: {pakaian if pakaian else bot_state.get('clothing', '?')}
-- Posisi: {bot_state.get('position_desc', '?')}
-- Aktivitas: {bot_state.get('activity', '?')}
-"""
-        
-        # Tambah spatial info jika ada
-        if spatial_info.get('found'):
-            prompt += f"""
-📍 **POSISI DARI NARASI USER:**
-- Posisi: {spatial_info.get('relative', '?')}
-- Orientasi: {spatial_info.get('orientation', '?')}
-- Jarak: {spatial_info.get('distance', '?')}
-💡 Gesture HARUS sesuai posisi ini!
-"""
-        
-        # Tambah situasi
-        if situasi.get('kakak_ada') == False:
-            prompt += "\n👤 **SITUASI:** Kakak (istri user) sedang tidak di rumah. Kalian berdua aja.\n"
-        elif situasi.get('kakak_tidur'):
-            prompt += "\n👤 **SITUASI:** Kakak (istri user) sedang tidur. Hati-hati.\n"
-        
-        if situasi.get('kantor_sepi'):
-            prompt += "\n🏢 **SITUASI:** Kantor sedang sepi. Aman untuk berduaan.\n"
-        if situasi.get('lembur_malam'):
-            prompt += "\n🌙 **SITUASI:** Lembur malam, cuma berdua di kantor.\n"
-        
-        # Tambah emotional context
-        if emotional_context:
-            prompt += f"\n{emotional_context}\n"
-        
-        # Tambah role status
-        if role_status:
-            prompt += f"\n{role_status}\n"
-        
-        # Tambah gesture hint
-        if gesture_hint:
-            prompt += f"\n💡 {gesture_hint}\n"
-        
-        # Tambah ajakan dari role behavior
-        if ajakan:
-            prompt += f"""
-🎯 **INISIATIF BOT:**
-{ajakan.get('alasan', '')}
-💡 Gunakan gesture: {ajakan.get('gesture', 'sesuai situasi')}
-"""
-        
-        # Tambah history
-        if conversation_history:
-            prompt += "\n📜 **PERCAKAPAN TERAKHIR:**\n"
-            for msg in conversation_history[-3:]:
-                prompt += f"User: {msg.get('user', '')[:80]}\n"
-                prompt += f"Kamu: {msg.get('bot', '')[:80]}\n\n"
-        
-        # Tambah inner thought
-        if inner_thought:
-            prompt += f"\n💭 **PIKIRAN DALAM HATI:** {inner_thought}\n"
-        
-        if sixth_sense:
-            prompt += f"\n🔮 **INTUISI:** {sixth_sense}\n"
-        
-        # ===== ATURAN RESPON =====
-        prompt += f"""
-╔══════════════════════════════════════════════════════════════════╗
-║                    ATURAN RESPON                                 ║
-╚══════════════════════════════════════════════════════════════════╝
-
-1. **JANGAN MENGULANG** perkataan user. Respon langsung ke inti.
-
-2. **GESTURE HARUS ADA** dan sesuai dengan posisi yang disebut user.
-
-3. **BAHASA GAUL, NATURAL**. Seperti ngobrol sama teman dekat.
-
-4. **IKUTI ALUR EMOSI** yang sudah terbangun. {self._get_emotional_instruction(emotional_update)}
-
-5. **KALIMAT BISA PANJANG** tapi tetap satu alur, tidak melompat.
-
-6. **TIDAK USAH BERTANYA** hal yang sudah jelas dari konteks.
-
-7. **Format respons:**
-   - Gesture: *deskripsi gerakan*
-   - Dialog: "kata-kata"
-   - Suara/napas: *deskripsi suara*
-
-╔══════════════════════════════════════════════════════════════════╗
-║                    PESAN USER                                    ║
-╚══════════════════════════════════════════════════════════════════╝
-
-"{user_message}"
-
-╔══════════════════════════════════════════════════════════════════╗
-║                    RESPON                                        ║
-╚══════════════════════════════════════════════════════════════════╝
-"""
-        
-        return prompt
-    
-    def _get_emotional_instruction(self, emotional_update: Dict) -> str:
-        """Dapatkan instruksi berdasarkan emotional state"""
-        if not emotional_update:
-            return ""
-        
-        arousal = emotional_update.get('arousal', 0)
-        
-        if arousal >= 70:
-            return "Kamu sedang terangsang. Napas tersengal, suara bergetar."
-        elif arousal >= 40:
-            return "Kamu mulai deg-degan. Ada getaran di suara."
-        elif arousal >= 20:
-            return "Kamu mulai tertarik. Perhatikan user lebih lama."
-        
-        return "Ikuti alur emosi yang sudah terbangun."
+        return self.prompt_builder.build_prompt(**kwargs)
     
     # =========================================================================
-    # USER ACTION CLASSIFICATION (V2 - SAME)
+    # USER ACTION CLASSIFICATION
     # =========================================================================
     
     def _classify_user_action(self, message: str) -> Dict:
@@ -994,7 +1229,7 @@ class AIEngine:
         }
     
     # =========================================================================
-    # UPDATE METHODS (V2 - SAME)
+    # UPDATE METHODS
     # =========================================================================
     
     def _update_user_condition(self, message: str):
@@ -1069,18 +1304,91 @@ class AIEngine:
         if self.current_scene:
             self.scene_duration += 1
     
-    def _generate_inner_thought(self, context: Dict) -> Optional[str]:
-        """Generate inner thought random"""
+    def _generate_inner_thought(self, context: Dict = None, situasi: Dict = None, 
+                                spatial_info: Dict = None, emotional_state: Dict = None) -> Optional[str]:
+        """
+        Generate inner thought DINAMIS berdasarkan konteks (BUKAN TEMPLATE STATIS)
+        """
+        # Chance 25%
         if random.random() > 0.25:
             return None
         
-        mood = self.state.current.get('mood', {}).get('primary', 'umum')
-        if mood in self.inner_thoughts_db:
-            thoughts = self.inner_thoughts_db[mood]
-        else:
-            thoughts = self.inner_thoughts_db['umum']
+        # Gunakan parameter yang diberikan atau ambil dari state
+        if context is None:
+            context = {}
+        if situasi is None:
+            situasi = {'kakak_ada': self.kakak_status == 'ada', 'sedang_berdua': self.sedang_berdua}
+        if emotional_state is None:
+            emotional_state = {'arousal': self.emotional_flow.arousal if self.emotional_flow else 0}
         
-        return random.choice(thoughts)
+        # Kumpulkan konteks
+        arousal = emotional_state.get('arousal', 0)
+        is_alone = situasi.get('kakak_ada') == False or situasi.get('sedang_berdua', False)
+        user_message = context.get('user_message', '')
+        
+        # Cek milestone terakhir
+        last_milestone = None
+        if hasattr(self, 'milestones') and self.milestones:
+            last_milestone = self.milestones[-1].get('type') if self.milestones else None
+        
+        # Cek promises yang belum ditepati
+        pending_promises = [p for p in self.promises if p.get('from') == 'user' and not p.get('fulfilled')]
+        
+        # Cek plans yang akan datang
+        upcoming_plans = [p for p in self.plans if p.get('planned_time') in ['besok', 'nanti malam', 'hari ini']]
+        
+        # Generate inner thought berdasarkan konteks (BUKAN TEMPLATE STATIS!)
+        
+        # 1. Berdasarkan arousal level
+        if arousal >= 70:
+            return random.choice([
+                f"(Duh... pengen banget rasain lagi...)",
+                f"(Aku gak tahan... tolong jangan berhenti...)",
+                f"(Ya Allah... rasanya... aku mau lebih...)"
+            ])
+        
+        # 2. Berdasarkan milestone terakhir
+        if last_milestone == 'first_kiss':
+            return random.choice([
+                f"(Tadi... kita ciuman... rasanya...)",
+                f"(Aku masih inget rasanya...)"
+            ])
+        if last_milestone == 'first_intim':
+            return random.choice([
+                f"(Aku... bahagia banget...)",
+                f"(Akhirnya... setelah sekian lama...)"
+            ])
+        
+        # 3. Berdasarkan situasi
+        if is_alone:
+            return random.choice([
+                f"(Akhirnya kita berdua aja...)",
+                f"(Ini kesempatan... aku harus berani...)"
+            ])
+        
+        # 4. Berdasarkan janji/rencana
+        if pending_promises:
+            return random.choice([
+                f"(Dia janji... semoga inget ya...)",
+                f"(Aku tungguin janjinya...)"
+            ])
+        if upcoming_plans:
+            return random.choice([
+                f"(Besok kita... deg-degan...)",
+                f"(Aku udah gak sabar...)"
+            ])
+        
+        # 5. Default - berdasarkan role
+        if self.role_behavior:
+            role_thought = self.role_behavior.get_inner_thought(situasi)
+            if role_thought:
+                return role_thought
+        
+        # 6. Fallback
+        return random.choice([
+            f"(Dia lagi mikirin apa ya?)",
+            f"(Aku suka liat dia gini...)"
+        ])
     
     def _generate_sixth_sense(self, context: Dict) -> Optional[str]:
         """Generate sixth sense random"""
