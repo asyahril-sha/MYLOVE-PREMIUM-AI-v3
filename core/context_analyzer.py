@@ -1,20 +1,24 @@
-#!/usr/bin/env python
+# core/context_analyzer.py
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-MYLOVE PREMIUM AI - CONTEXT ANALYZER
+MYLOVE PREMIUM AI - CONTEXT ANALYZER (VIRTUAL HUMAN)
 =============================================================================
-Menganalisis dan menggabungkan semua konteks percakapan
+Menganalisis dan menggabungkan semua konteks percakapan dengan kemampuan V3:
 - Menggabungkan data dari semua sistem (memory, leveling, dynamics, dll)
-- Menyediakan konteks lengkap untuk generate respons
+- Analisis situasi (kakak ada/tidak, suami ada/tidak, kantor sepi, dll)
+- Analisis posisi dari narasi user
 - Analisis sentimen dan intent
+- Analisis emosi user
+- Menyediakan konteks lengkap untuk generate respons
 =============================================================================
 """
 
 import time
 import logging
 import random
-from typing import Dict, List, Optional, Any
+import re
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -22,16 +26,81 @@ logger = logging.getLogger(__name__)
 
 class ContextAnalyzer:
     """
-    Menganalisis dan menggabungkan semua konteks percakapan
-    Menyediakan data lengkap untuk prompt AI
+    Menganalisis dan menggabungkan semua konteks percakapan dengan kemampuan V3
     """
     
     def __init__(self):
-        # Cache untuk hasil analisis
         self.cache = {}
         self.cache_ttl = 300  # 5 menit
         
-        logger.info("✅ ContextAnalyzer initialized")
+        # Database pola deteksi situasi
+        self.situasi_patterns = {
+            'kakak_ada': [
+                r'istriku\s+ada', r'kakakku\s+ada', r'istri\s+lagi\s+di', r'kakak\s+lagi\s+di',
+                r'istriku\s+di\s+rumah', r'kakakku\s+di\s+rumah'
+            ],
+            'kakak_tidak_ada': [
+                r'istriku\s+pergi', r'kakakku\s+pergi', r'istriku\s+keluar', r'kakakku\s+keluar',
+                r'istriku\s+tidak\s+ada', r'kakakku\s+tidak\s+ada', r'istriku\s+sedang\s+keluar'
+            ],
+            'kakak_tidur': [
+                r'istriku\s+tidur', r'kakakku\s+tidur', r'istri\s+lagi\s+tidur', r'kakak\s+lagi\s+tidur'
+            ],
+            'suami_ada': [
+                r'suamiku\s+ada', r'suami\s+lagi\s+di', r'suami\s+di\s+rumah'
+            ],
+            'suami_tidak_ada': [
+                r'suamiku\s+pergi', r'suamiku\s+keluar', r'suami\s+tidak\s+ada', r'suami\s+sedang\s+keluar'
+            ],
+            'suami_tidur': [
+                r'suamiku\s+tidur', r'suami\s+lagi\s+tidur'
+            ],
+            'kantor_sepi': [
+                r'kantor\s+sepi', r'kantor\s+kosong', r'tidak\s+ada\s+orang', r'sendirian\s+di\s+kantor'
+            ],
+            'lembur_malam': [
+                r'lembur', r'lembur\s+malam', r'kerja\s+malam', r'kantor\s+malam'
+            ],
+            'orang_tua_ada': [
+                r'orang\s+tua\s+ada', r'ibu\s+ada', r'ayah\s+ada', r'ortu\s+ada'
+            ],
+            'orang_tua_tidak_ada': [
+                r'orang\s+tua\s+pergi', r'orang\s+tua\s+keluar', r'ortu\s+pergi'
+            ],
+            'berduaan': [
+                r'sendirian', r'cuma\s+berdua', r'kita\s+aja', r'tidak\s+ada\s+orang', r'berdua\s+aja'
+            ]
+        }
+        
+        # Database pola deteksi posisi
+        self.posisi_patterns = [
+            (r'duduk\s+di\s+antara\s+kaki', 'duduk_di_antara_kaki', 'di antara kaki user'),
+            (r'di\s+antara\s+kaki', 'duduk_di_antara_kaki', 'di antara kaki user'),
+            (r'duduk\s+di\s+pangkuan', 'duduk_di_pangkuan', 'di pangkuan user'),
+            (r'di\s+pangkuan', 'duduk_di_pangkuan', 'di pangkuan user'),
+            (r'di\s+belakang', 'di_belakang', 'di belakang user'),
+            (r'dibelakang', 'di_belakang', 'di belakang user'),
+            (r'bersebelahan', 'bersebelahan', 'di samping user'),
+            (r'berdampingan', 'bersebelahan', 'di samping user'),
+            (r'di\s+samping', 'bersebelahan', 'di samping user'),
+            (r'berhadapan', 'berhadapan', 'berhadapan dengan user'),
+            (r'menghadap', 'berhadapan', 'berhadapan dengan user'),
+            (r'di\s+depan', 'di_depan', 'di depan user'),
+            (r'didepan', 'di_depan', 'di depan user')
+        ]
+        
+        # Database emosi user
+        self.emosi_patterns = {
+            'senang': ['senang', 'bahagia', 'happy', 'gembira', 'ceria'],
+            'sedih': ['sedih', 'kecewa', 'sad', 'down', 'galau'],
+            'marah': ['marah', 'kesal', 'betek', 'geram', 'sebal'],
+            'horny': ['horny', 'sange', 'nafsu', 'pengen', 'hot', 'panas'],
+            'romantis': ['sayang', 'cinta', 'romantis', 'kangen', 'rindu'],
+            'malu': ['malu', 'gugup', 'deg-degan', 'salah tingkah'],
+            'capek': ['capek', 'lelah', 'lemas', 'ngantuk']
+        }
+        
+        logger.info("✅ ContextAnalyzer V3 initialized")
     
     async def analyze(self,
                      user_id: int,
@@ -56,39 +125,17 @@ class ContextAnalyzer:
                      dominance_mode: str = "normal",
                      conversation_history: Optional[List[Dict]] = None,
                      
+                     # ===== V3 ADDITIONS =====
+                     emotional_state: Optional[Dict] = None,
+                     spatial_info: Optional[Dict] = None,
+                     
                      # ===== METADATA =====
                      metadata: Optional[Dict] = None) -> Dict:
         """
-        Analisis lengkap semua konteks
-        
-        Args:
-            user_id: ID user
-            session_id: ID sesi
-            user_message: Pesan user saat ini
-            role: Role bot
-            bot_name: Nama bot
-            user_name: Nama user
-            
-            intimacy_data: Data dari intimacy system
-            mood_data: Data dari mood system
-            chemistry_data: Data dari chemistry system
-            direction_data: Data dari direction system
-            location_data: Data lokasi
-            clothing_data: Data pakaian
-            physical_attrs: Atribut fisik bot
-            user_preferences: Preferensi user
-            memories: Memori relevan
-            story_data: Data story arc
-            intent_data: Data intent user
-            dominance_mode: Mode dominasi
-            conversation_history: History percakapan
-            metadata: Metadata tambahan
-            
-        Returns:
-            Dict berisi semua konteks untuk prompt
+        Analisis lengkap semua konteks dengan kemampuan V3
         """
         
-        # Cek cache (hanya untuk pesan yang sama persis)
+        # Cek cache
         cache_key = f"{session_id}:{user_message[:50]}"
         if cache_key in self.cache:
             cache_age = time.time() - self.cache[cache_key]['timestamp']
@@ -118,7 +165,7 @@ class ContextAnalyzer:
             
             'session': {
                 'id': session_id,
-                'duration': 0  # Akan diisi dari session storage
+                'duration': 0
             }
         }
         
@@ -181,7 +228,7 @@ class ContextAnalyzer:
                 'trend': 'stabil'
             }
         
-        # ===== 5. DIRECTION DATA (untuk PDKT) =====
+        # ===== 5. DIRECTION DATA =====
         if direction_data:
             context['direction'] = {
                 'who': direction_data.get('who', 'user_ke_bot'),
@@ -295,15 +342,36 @@ class ContextAnalyzer:
                     'time_ago': self._format_time_ago(msg.get('timestamp', time.time()))
                 })
         
-        # ===== 13. METADATA TAMBAHAN =====
-        if metadata:
-            context['metadata'] = metadata
+        # ===== 13. V3: ANALISIS SITUASI =====
+        situasi = self._analyze_situasi(user_message)
+        context['situasi'] = situasi
         
-        # ===== 14. HITUNGAN TAMBAHAN =====
+        # ===== 14. V3: ANALISIS POSISI =====
+        posisi = self._analyze_posisi(user_message)
+        context['posisi'] = posisi
+        
+        # ===== 15. V3: ANALISIS EMOSI USER =====
+        user_emotion = self._analyze_user_emotion(user_message)
+        context['user_emotion'] = user_emotion
+        
+        # ===== 16. V3: ANALISIS AROUSAL USER =====
+        user_arousal = self._analyze_user_arousal(user_message)
+        context['user_arousal'] = user_arousal
+        
+        # ===== 17. V3: EMOTIONAL STATE =====
+        if emotional_state:
+            context['bot_emotional_state'] = emotional_state
+        
+        # ===== 18. V3: SPATIAL INFO =====
+        if spatial_info:
+            context['spatial_info'] = spatial_info
+        
+        # ===== 19. HITUNGAN TAMBAHAN =====
         context['calculations'] = {
             'idle_minutes': await self._get_idle_minutes(session_id),
             'conversation_tone': self._analyze_tone(user_message),
-            'message_sentiment_score': self._calculate_sentiment_score(user_message)
+            'message_sentiment_score': self._calculate_sentiment_score(user_message),
+            'user_arousal_score': user_arousal
         }
         
         # Simpan ke cache
@@ -319,10 +387,136 @@ class ContextAnalyzer:
         
         return context
     
+    # =========================================================================
+    # V3: ANALISIS SITUASI
+    # =========================================================================
+    
+    def _analyze_situasi(self, user_message: str) -> Dict:
+        """
+        Analisis situasi dari pesan user
+        """
+        message_lower = user_message.lower()
+        
+        situasi = {
+            'kakak_ada': True,
+            'kakak_tidur': False,
+            'suami_ada': True,
+            'suami_tidur': False,
+            'kantor_sepi': False,
+            'lembur_malam': False,
+            'orang_tua_ada': True,
+            'berduaan': False
+        }
+        
+        # Deteksi menggunakan regex patterns
+        for key, patterns in self.situasi_patterns.items():
+            for pattern in patterns:
+                if re.search(pattern, message_lower):
+                    if key == 'kakak_ada':
+                        situasi['kakak_ada'] = True
+                    elif key == 'kakak_tidak_ada':
+                        situasi['kakak_ada'] = False
+                    elif key == 'kakak_tidur':
+                        situasi['kakak_tidur'] = True
+                    elif key == 'suami_ada':
+                        situasi['suami_ada'] = True
+                    elif key == 'suami_tidak_ada':
+                        situasi['suami_ada'] = False
+                    elif key == 'suami_tidur':
+                        situasi['suami_tidur'] = True
+                    elif key == 'kantor_sepi':
+                        situasi['kantor_sepi'] = True
+                    elif key == 'lembur_malam':
+                        situasi['lembur_malam'] = True
+                    elif key == 'orang_tua_ada':
+                        situasi['orang_tua_ada'] = True
+                    elif key == 'orang_tua_tidak_ada':
+                        situasi['orang_tua_ada'] = False
+                    elif key == 'berduaan':
+                        situasi['berduaan'] = True
+        
+        # Deteksi tambahan dari kata kunci sederhana
+        if any(w in message_lower for w in ['sendirian', 'cuma berdua', 'kita aja', 'tidak ada orang']):
+            situasi['berduaan'] = True
+        
+        return situasi
+    
+    def _analyze_posisi(self, user_message: str) -> Dict:
+        """
+        Analisis posisi dari pesan user
+        """
+        message_lower = user_message.lower()
+        
+        for pattern, pos_type, relative in self.posisi_patterns:
+            if re.search(pattern, message_lower):
+                return {
+                    'found': True,
+                    'type': pos_type,
+                    'relative': relative,
+                    'raw': pattern
+                }
+        
+        return {'found': False}
+    
+    def _analyze_user_emotion(self, user_message: str) -> Dict:
+        """
+        Analisis emosi user dari pesan
+        """
+        message_lower = user_message.lower()
+        
+        emotions = {}
+        for emotion, keywords in self.emosi_patterns.items():
+            count = sum(1 for k in keywords if k in message_lower)
+            if count > 0:
+                emotions[emotion] = count
+        
+        if not emotions:
+            return {'primary': 'netral', 'intensity': 0.5}
+        
+        # Ambil emosi dengan skor tertinggi
+        primary = max(emotions, key=emotions.get)
+        intensity = min(1.0, emotions[primary] / 5)
+        
+        return {
+            'primary': primary,
+            'intensity': intensity,
+            'all': emotions
+        }
+    
+    def _analyze_user_arousal(self, user_message: str) -> float:
+        """
+        Analisis arousal user dari pesan
+        """
+        message_lower = user_message.lower()
+        arousal = 0.0
+        
+        high_words = ['horny', 'sange', 'nafsu', 'pengen', 'hot', 'panas', 'intim', 'seksi']
+        medium_words = ['deg-degan', 'gugup', 'malu', 'berani', 'dekat']
+        low_words = ['enak', 'nyaman', 'santai']
+        
+        for word in high_words:
+            if word in message_lower:
+                arousal += 0.3
+        for word in medium_words:
+            if word in message_lower:
+                arousal += 0.15
+        for word in low_words:
+            if word in message_lower:
+                arousal += 0.05
+        
+        # Deteksi dari gesture/deskripsi
+        if '*' in user_message or '(' in user_message or '[' in user_message:
+            arousal += 0.1
+        
+        return min(1.0, arousal)
+    
+    # =========================================================================
+    # UTILITY METHODS
+    # =========================================================================
+    
     def _get_time_of_day(self) -> str:
         """Dapatkan waktu saat ini"""
         hour = datetime.now().hour
-        
         if 5 <= hour < 11:
             return "pagi"
         elif 11 <= hour < 15:
@@ -336,13 +530,10 @@ class ContextAnalyzer:
     
     async def _get_idle_minutes(self, session_id: str) -> float:
         """Dapatkan berapa menit user diam"""
-        # Akan diambil dari session storage
         return 0
     
     def _analyze_tone(self, message: str) -> str:
-        """
-        Analisis nada percakapan secara sederhana
-        """
+        """Analisis nada percakapan"""
         message_lower = message.lower()
         
         positive_words = ['senang', 'bahagia', 'suka', 'cinta', 'sayang', '❤️', '😊', '🥰', '😍']
@@ -367,9 +558,7 @@ class ContextAnalyzer:
             return "neutral"
     
     def _calculate_sentiment_score(self, message: str) -> float:
-        """
-        Hitung skor sentimen (-1.0 hingga 1.0)
-        """
+        """Hitung skor sentimen"""
         message_lower = message.lower()
         
         positive_words = ['senang', 'bahagia', 'suka', 'cinta', 'sayang', 'nikmat', 'enak', 'nyaman', 'baik']
@@ -411,15 +600,7 @@ class ContextAnalyzer:
             del self.cache[key]
     
     def get_summary(self, context: Dict) -> str:
-        """
-        Dapatkan ringkasan konteks untuk log
-        
-        Args:
-            context: Hasil dari analyze()
-            
-        Returns:
-            String ringkasan
-        """
+        """Dapatkan ringkasan konteks"""
         lines = [
             f"📊 Context Summary:",
             f"• User: {context['user']['name']}",
@@ -431,15 +612,26 @@ class ContextAnalyzer:
             f"• Tone: {context.get('calculations', {}).get('conversation_tone', 'neutral')}"
         ]
         
+        # V3 additions
+        if context.get('situasi'):
+            if context['situasi'].get('berduaan'):
+                lines.append(f"• Situasi: Berduaan")
+            if context['situasi'].get('kantor_sepi'):
+                lines.append(f"• Situasi: Kantor sepi")
+        
+        if context.get('user_emotion'):
+            lines.append(f"• Emosi user: {context['user_emotion'].get('primary', 'netral')}")
+        
+        if context.get('user_arousal'):
+            lines.append(f"• Arousal user: {context['user_arousal']:.0%}")
+        
         return "\n".join(lines)
     
     def format_for_display(self, context: Dict) -> str:
-        """
-        Format konteks untuk ditampilkan (debug)
-        """
+        """Format konteks untuk ditampilkan (debug)"""
         lines = [
             "=" * 50,
-            "📊 KONTEKS PERCAKAPAN",
+            "📊 KONTEKS PERCAKAPAN (V3)",
             "=" * 50,
             f"👤 User: {context['user']['name']}",
             f"🤖 Bot: {context['bot']['name']} ({context['bot']['role']})",
@@ -449,9 +641,23 @@ class ContextAnalyzer:
             f"📍 Lokasi: {context['location']['name']}",
             f"👗 Pakaian: {context['clothing']['description']}",
             f"🎯 Intent: {context['intent']['primary']}",
-            f"💬 Pesan: {context['user']['message'][:100]}...",
-            "=" * 50
         ]
+        
+        # V3 additions
+        if context.get('situasi'):
+            lines.append(f"🏠 Situasi: {context['situasi']}")
+        
+        if context.get('posisi', {}).get('found'):
+            lines.append(f"📍 Posisi: {context['posisi'].get('relative', '?')}")
+        
+        if context.get('user_emotion'):
+            lines.append(f"😊 Emosi user: {context['user_emotion'].get('primary', '?')}")
+        
+        if context.get('user_arousal'):
+            lines.append(f"🔥 Arousal user: {context['user_arousal']:.0%}")
+        
+        lines.append(f"💬 Pesan: {context['user']['message'][:100]}...")
+        lines.append("=" * 50)
         
         return "\n".join(lines)
 
