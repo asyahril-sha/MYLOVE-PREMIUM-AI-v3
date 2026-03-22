@@ -4,7 +4,7 @@
     "buildCommand": "pip install -r requirements.txt && python -c \"from database.migrate import migrate; migrate()\""
   },
   "deploy": {
-    "startCommand": "python database_migrate.py",
+    "startCommand": "python main.py",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
