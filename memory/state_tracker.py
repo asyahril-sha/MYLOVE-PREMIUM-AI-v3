@@ -781,9 +781,8 @@ class StateTracker:
     # =========================================================================
     
     def get_current_state(self):
-        # Cek tipe data location
+        # 🔥 PERBAIKAN: Handle jika location adalah string
         location_data = self.current.get('location')
-    
         if isinstance(location_data, dict):
             location_name = location_data.get('name', 'Tidak diketahui')
             location_category = location_data.get('category', 'unknown')
@@ -792,13 +791,29 @@ class StateTracker:
             location_name = str(location_data) if location_data else 'Tidak diketahui'
             location_category = 'unknown'
     
+        # 🔥 PERBAIKAN: Handle jika clothing adalah string
+        clothing_data = self.current.get('clothing')
+        if isinstance(clothing_data, dict):
+            clothing_name = clothing_data.get('name', 'Tidak diketahui')
+        else:
+            clothing_name = str(clothing_data) if clothing_data else 'Tidak diketahui'
+    
+        # 🔥 PERBAIKAN: Handle jika position adalah string
+        position_data = self.current.get('position')
+        if isinstance(position_data, dict):
+            position_name = position_data.get('name', 'Tidak diketahui')
+            position_desc = position_data.get('description', '')
+        else:
+            position_name = str(position_data) if position_data else 'Tidak diketahui'
+            position_desc = str(position_data) if position_data else ''
+    
         return {
             'location': location_name,
             'location_category': location_category,
             'privacy_level': self.current.get('privacy_level', 0.5),
-            'clothing': self.current.get('clothing', {}).get('name') if isinstance(self.current.get('clothing'), dict) else self.current.get('clothing'),
-            'position': self.current.get('position', {}).get('name') if isinstance(self.current.get('position'), dict) else self.current.get('position'),
-            'position_desc': self.current.get('position', {}).get('description') if isinstance(self.current.get('position'), dict) else str(self.current.get('position')),
+            'clothing': clothing_name,
+            'position': position_name,
+            'position_desc': position_desc,
             'mood': self.current.get('mood', {}).get('primary') if isinstance(self.current.get('mood'), dict) else self.current.get('mood'),
             'mood_secondary': self.current.get('mood', {}).get('secondary') if isinstance(self.current.get('mood'), dict) else None,
             'mood_intensity': self.current.get('mood', {}).get('intensity', 0.5) if isinstance(self.current.get('mood'), dict) else 0.5,
