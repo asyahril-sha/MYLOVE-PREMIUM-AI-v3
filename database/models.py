@@ -978,6 +978,8 @@ class UserSession(BaseModel):
     current_clothing: str = "pakaian biasa"
     current_position: str = "santai"
     relationship_status: str = "pdkt"
+    kakak_status: str = "ada"           # ada, tidak_ada, tidur
+    kakak_lokasi: str = "kamar"         # 🔥 BARU: kamar, dapur, ruang tamu, dll
     
     # ===== STATE YANG HARUS DIINGAT UNTUK KONSISTENSI =====
     current_activity: str = ""                     # Aktivitas saat ini (nonton, masak, dll)
