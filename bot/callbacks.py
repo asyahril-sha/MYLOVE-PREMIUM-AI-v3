@@ -401,6 +401,10 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, role
         # Generate ID
         session_id = generate_session_id(bot_name, role_key, user_id)
         context.user_data['current_session'] = session_id
+
+        # Simpan ke context bahwa user adalah suami dari kakak (istri user)
+        context.user_data['user_relationship'] = 'suami_dari_kakak'
+        context.user_data['istri_nama'] = 'Nova'  # nama istri user
         
         # Pilih pembuka
         opening = random.choice(role_info['pembuka'])
