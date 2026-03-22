@@ -215,4 +215,3 @@ Setiap role punya karakter, pakaian, dan gaya menggoda yang unik:
 | **Storage** | Minimal 500 MB |
 | **Internet** | Koneksi stabil untuk DeepSeek API |
 
-### Dependencies
