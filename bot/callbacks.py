@@ -234,15 +234,17 @@ def get_random_location() -> Tuple[str, str]:
     try:
         loc_system = LocationSystem()
         loc = loc_system.get_random_location()
-        location_text = f"📍 Aku di <b>{loc['name']}</b>. {loc['description']}"
+        # 🔥 PERBAIKAN: Simpan hanya nama lokasi
+        location_name = loc['name']
+        location_text = f"📍 Aku di <b>{location_name}</b>. {loc['description']}"
         activity = random.choice(loc['activities'])
-        return location_text, activity
+        return location_text, activity, location_name  # Tambahkan return location_name
     except:
         locations = [
-            ("📍 Aku di <b>kamar</b>. Kamar tidur dengan ranjang ukuran queen.", "rebahan"),
-            ("📍 Aku di <b>ruang tamu</b>. Ruang tamu yang hangat dengan sofa empuk.", "nonton TV"),
-            ("📍 Aku di <b>dapur</b>. Dapur bersih dengan peralatan masak lengkap.", "masak"),
-            ("📍 Aku di <b>pantai</b>. Pantai dengan pasir putih dan ombak tenang.", "jalan-jalan"),
+            ("📍 Aku di <b>kamar</b>. Kamar tidur dengan ranjang ukuran queen.", "rebahan", "kamar"),
+            ("📍 Aku di <b>ruang tamu</b>. Ruang tamu yang hangat dengan sofa empuk.", "nonton TV", "ruang tamu"),
+            ("📍 Aku di <b>dapur</b>. Dapur bersih dengan peralatan masak lengkap.", "masak", "dapur"),
+            ("📍 Aku di <b>pantai</b>. Pantai dengan pasir putih dan ombak tenang.", "jalan-jalan", "pantai"),
         ]
         return random.choice(locations)
 
