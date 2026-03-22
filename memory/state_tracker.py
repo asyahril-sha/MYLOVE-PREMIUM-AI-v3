@@ -516,94 +516,120 @@ class StateTracker:
     
     def update_location(self, name: str, category: str = "private") -> Tuple[bool, str]:
         """Update lokasi saat ini"""
-        old_name = self.current['location']['name']
-        
-        last_change = self.current['location']['last_change']
+        # 🔥 PERBAIKAN: Pastikan location adalah dictionary
+        if isinstance(self.current['location'], str):
+            # Jika masih string, konversi ke dictionary
+            old_name = self.current['location']
+            self.current['location'] = {
+                'name': old_name,
+                'category': 'unknown',
+                'privacy_level': 0.5,
+                'last_change': 0,
+                'visited_before': []
+            }
+        else:
+            old_name = self.current['location'].get('name', '?')
+    
+        last_change = self.current['location'].get('last_change', 0)
         if time.time() - last_change < self.validation_rules['location']['min_time_between_change']:
             return False, f"Masih di {old_name}, tunggu bentar"
-        
+    
         self.current['location'] = {
             'name': name,
             'category': category,
+            'privacy_level': 0.9 if category == 'intimate' else 0.6 if category == 'private' else 0.3,
             'last_change': time.time(),
             'visited_before': self.current['location'].get('visited_before', []) + [name]
         }
-        
-        if category == 'intimate':
-            self.current['location']['privacy_level'] = 0.9
-        elif category == 'public':
-            self.current['location']['privacy_level'] = 0.3
-        else:
-            self.current['location']['privacy_level'] = 0.6
-        
+    
         self.history['location'].append({
             'timestamp': time.time(),
             'from': old_name,
             'to': name,
             'category': category
         })
-        
+    
         self.daily_stats['location_changes'] += 1
-        
+    
         logger.debug(f"📍 Location updated: {old_name} → {name}")
         return True, f"Pindah ke {name}"
     
     def update_clothing(self, name: str, reason: str = "ganti baju") -> Tuple[bool, str]:
         """Update pakaian"""
-        old_name = self.current['clothing']['name']
-        
+        # 🔥 PERBAIKAN: Pastikan clothing adalah dictionary
+        if isinstance(self.current['clothing'], str):
+            old_name = self.current['clothing']
+            self.current['clothing'] = {
+                'name': old_name,
+                'last_change': 0,
+                'change_reason': None,
+                'worn_before': []
+            }
+        else:
+            old_name = self.current['clothing'].get('name', '?')
+    
         if not reason or not any(r in reason.lower() for r in self.validation_rules['clothing']['valid_reasons']):
             return False, "Ganti baju harus ada alasannya"
-        
-        last_change = self.current['clothing']['last_change']
+    
+        last_change = self.current['clothing'].get('last_change', 0)
         if time.time() - last_change < self.validation_rules['clothing']['min_time_between_change']:
             return False, "Baru aja ganti baju"
-        
+    
         self.current['clothing'] = {
             'name': name,
             'last_change': time.time(),
             'change_reason': reason,
             'worn_before': self.current['clothing'].get('worn_before', []) + [name]
         }
-        
+    
         self.history['clothing'].append({
             'timestamp': time.time(),
             'from': old_name,
             'to': name,
             'reason': reason
         })
-        
+    
         self.daily_stats['clothing_changes'] += 1
-        
+    
         logger.debug(f"👗 Clothing updated: {old_name} → {name}")
         return True, f"Ganti {name}"
     
     def update_position(self, name: str, description: str = "") -> Tuple[bool, str]:
         """Update posisi tubuh"""
-        old_name = self.current['position']['name']
-        
-        last_change = self.current['position']['last_change']
+        # 🔥 PERBAIKAN: Pastikan position adalah dictionary
+        if isinstance(self.current['position'], str):
+            old_name = self.current['position']
+            self.current['position'] = {
+                'name': old_name,
+                'description': old_name,
+                'last_change': 0,
+                'positions_today': []
+            }
+        else:
+            old_name = self.current['position'].get('name', '?')
+    
+        last_change = self.current['position'].get('last_change', 0)
         if time.time() - last_change < self.validation_rules['position']['min_time_between_change']:
             return False, "Kebanyakan gerak, santai dulu"
-        
+    
         last_hour = time.time() - 3600
         changes_last_hour = [h for h in self.history['position'] if h['timestamp'] > last_hour]
         if len(changes_last_hour) > self.validation_rules['position']['max_changes_per_hour']:
             return False, "Sering banget ganti posisi"
-        
+    
         self.current['position'] = {
             'name': name,
-            'description': description,
+            'description': description if description else name,
             'last_change': time.time(),
             'positions_today': self.current['position'].get('positions_today', []) + [name]
         }
-        
+    
         self.history['position'].append({
             'timestamp': time.time(),
             'from': old_name,
             'to': name
         })
-        
+    
         return True, f"Ganti posisi jadi {name}"
     
     # =========================================================================
