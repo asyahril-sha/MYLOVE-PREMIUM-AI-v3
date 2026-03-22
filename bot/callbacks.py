@@ -401,30 +401,20 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, role
         # Generate ID
         session_id = generate_session_id(bot_name, role_key, user_id)
         context.user_data['current_session'] = session_id
-
-       # Untuk role Ipar, set status tempat tinggal
+        
+        # ===== SET DATA UNTUK ROLE IPAR =====
         if role_key == 'ipar':
-            # Set data ke context
             context.user_data['tinggal_bersama'] = True
             context.user_data['status_tinggal'] = 'tinggal di rumah kakak (istri user)'
-            context.user_data['kakak_nama'] = 'Nova'  # nama kakak (istri user)
-            context.user_data['kakak_panggilan'] = 'Kak Nova'  # panggilan untuk kakak
+            context.user_data['kakak_nama'] = 'Nova'
+            context.user_data['kakak_panggilan'] = 'Kak Nova'
             context.user_data['rumah_user'] = True
             context.user_data['user_relationship'] = 'suami_dari_kakak'
-    
-            # Tambahkan ke response_lines (setelah baris "Tentang aku:")
-            # response_lines index:
-            # 0: "💕 Halo {user_name}!"
-            # 1: "Aku {bot_name}..."
-            # 2: ""
-            # 3: "<b>Tentang aku:</b>"
-            # 4: ← TAMBAHKAN DI SINI
-            response_lines.insert(4, f"• Tinggal bersama: {context.user_data['kakak_panggilan']} dan suaminya")
         
         # Pilih pembuka
         opening = random.choice(role_info['pembuka'])
         
-        # Pesan perkenalan
+        # ===== BUAT RESPONSE LINES =====
         response_lines = [
             f"💕 <b>Halo {user_name}!</b>\n",
             f"Aku <b>{bot_name}</b>, {role_info['name']}. Namaku artinya '{meaning}' - {role_desc}\n",
@@ -450,6 +440,11 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, role
             f"💬 <b>Ayo mulai ngobrol, {user_name}!</b>",
             opening
         ]
+        
+        # ===== TAMBAHKAN INFO TINGGAL UNTUK IPAR =====
+        if role_key == 'ipar':
+            # Insert setelah baris "Tentang aku:" (index 3)
+            response_lines.insert(4, f"• Tinggal bersama: {context.user_data['kakak_panggilan']} dan suaminya")
         
         response = "\n".join(response_lines)
         await query.edit_message_text(response, parse_mode='HTML')
