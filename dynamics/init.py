@@ -37,6 +37,7 @@ from .mantan_behavior import MantanBehavior
 from .emotional_flow import EmotionalFlow, EmotionalState
 from .spatial_awareness import SpatialAwareness
 from .gesture_db import get_gesture, get_gesture_by_combination
+from configs.role_behavior_config
 
 __all__ = [
     # V2 Existing
