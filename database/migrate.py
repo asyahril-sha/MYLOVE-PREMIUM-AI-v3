@@ -467,6 +467,7 @@ async def fix_missing_columns():
         'plans': "TEXT DEFAULT '[]'",
         'user_preferences': "TEXT DEFAULT '{}'",
         'current_scene_id': "TEXT",
+        'kakak_lokasi': "TEXT DEFAULT 'kamar'",  # 🔥 BARU
     }
     
     # Dapatkan kolom yang sudah ada
