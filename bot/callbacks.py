@@ -248,18 +248,21 @@ def get_random_location() -> Tuple[str, str]:
         ]
         return random.choice(locations)
 
-def get_random_clothing() -> str:
+def get_random_clothing() -> Tuple[str, str]:
     """Dapatkan pakaian random"""
     try:
         cloth_system = ClothingSystem()
         cloth = cloth_system.get_random_clothing()
-        return f"👗 Aku pakai <b>{cloth['name']}</b>. {cloth['description']}"
+        # 🔥 PERBAIKAN: Simpan hanya nama pakaian
+        clothing_name = cloth['name']
+        clothing_text = f"👗 Aku pakai <b>{clothing_name}</b>. {cloth['description']}"
+        return clothing_text, clothing_name
     except:
         clothes = [
-            "👗 Aku pakai <b>daster rumah motif bunga</b>. Daster tipis yang nyaman.",
-            "👗 Aku pakai <b>piyama lucu</b> dengan motif boneka.",
-            "👚 Aku pakai <b>kaos oversized</b> dan <b>celana pendek</b>.",
-            "👗 Aku pakai <b>dress cantik</b> warna pastel.",
+            ("👗 Aku pakai <b>daster rumah motif bunga</b>. Daster tipis yang nyaman.", "daster rumah"),
+            ("👗 Aku pakai <b>piyama lucu</b> dengan motif boneka.", "piyama"),
+            ("👚 Aku pakai <b>kaos oversized</b> dan <b>celana pendek</b>.", "kaos oversized"),
+            ("👗 Aku pakai <b>dress cantik</b> warna pastel.", "dress cantik"),
         ]
         return random.choice(clothes)
 
@@ -396,9 +399,9 @@ async def role_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, role
         context.user_data['bot_name'] = bot_name
         context.user_data['intimacy_level'] = 1
         context.user_data['total_chats'] = 0
-        context.user_data['current_location'] = location_text
-        context.user_data['current_clothing'] = clothing_text
-        context.user_data['current_position'] = position_text
+        context.user_data['current_location'] = location_name  # Simpan nama saja
+        context.user_data['current_clothing'] = clothing_name  # Simpan nama saja
+        context.user_data['current_position'] = position_name  # Simpan nama saja
         
         # Generate ID
         session_id = generate_session_id(bot_name, role_key, user_id)
